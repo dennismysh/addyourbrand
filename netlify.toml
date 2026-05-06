@@ -1,0 +1,9 @@
+# Netlify build configuration. The @netlify/plugin-nextjs runtime is what
+# turns the Next.js .next/ output into Netlify Functions + edge handlers.
+
+[build]
+  command = "next build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
