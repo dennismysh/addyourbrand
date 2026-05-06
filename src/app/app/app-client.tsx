@@ -77,22 +77,55 @@ export function AppClient({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/analyze", {
+      // Enqueue the job. /api/analyze returns 202 + jobId; the actual AI work
+      // runs in a Netlify background function (up to 15 min). We poll until
+      // status is done|error.
+      const enqueueRes = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           brand,
-          // Pass brandId so the server can pull this brand's reference imagery.
-          // Server still validates ownership against the session.
           brandId: selectedBrandId,
           imageBase64,
           imageMediaType: imageMime,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Analysis failed");
-      setAnalysis(data.analysis);
-      setReferencesUsed(data.referencesUsed ?? 0);
+      const enqueueData = await enqueueRes.json();
+      if (!enqueueRes.ok) {
+        throw new Error(enqueueData.error ?? "Failed to enqueue analysis");
+      }
+      const jobId: string = enqueueData.jobId;
+
+      // Poll up to ~3 min total at 2s intervals. Adaptive thinking + xhigh
+      // effort on a complex template usually finishes in 30–90s.
+      const start = Date.now();
+      const TIMEOUT_MS = 3 * 60_000;
+      const POLL_MS = 2_000;
+
+      while (true) {
+        if (Date.now() - start > TIMEOUT_MS) {
+          throw new Error(
+            "Timed out waiting for analysis. The job is still running in the background — try refreshing in a minute.",
+          );
+        }
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        const statusRes = await fetch(`/api/analyze/${jobId}`);
+        if (!statusRes.ok) {
+          throw new Error("Failed to check job status");
+        }
+        const status = await statusRes.json();
+        if (status.status === "done") {
+          setAnalysis(status.result);
+          // referencesUsed isn't tracked through the job pattern yet —
+          // surfaces as 0 until we wire it through the job result envelope.
+          setReferencesUsed(0);
+          return;
+        }
+        if (status.status === "error") {
+          throw new Error(status.error ?? "Analysis failed");
+        }
+        // pending | running → keep polling
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
