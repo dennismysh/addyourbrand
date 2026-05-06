@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 30% 97%;
+    --foreground: 20 14% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 14% 12%;
+
+    --primary: 20 14% 12%;
+    --primary-foreground: 40 30% 97%;
+
+    --secondary: 40 20% 92%;
+    --secondary-foreground: 20 14% 12%;
+
+    --muted: 40 20% 92%;
+    --muted-foreground: 20 8% 40%;
+
+    --accent: 18 75% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 15% 85%;
+    --input: 30 15% 85%;
+    --ring: 18 75% 55%;
+
+    --radius: 0.625rem;
+
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-serif: "Fraunces", "Playfair Display", Georgia, serif;
+  }
+
+  .dark {
+    --background: 20 14% 8%;
+    --foreground: 40 30% 95%;
+    --card: 20 14% 11%;
+    --card-foreground: 40 30% 95%;
+    --primary: 40 30% 95%;
+    --primary-foreground: 20 14% 12%;
+    --secondary: 20 10% 18%;
+    --secondary-foreground: 40 30% 95%;
+    --muted: 20 10% 18%;
+    --muted-foreground: 40 10% 65%;
+    --accent: 18 75% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 20 10% 22%;
+    --input: 20 10% 22%;
+    --ring: 18 75% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .preview-23 {
+    aspect-ratio: 2 / 3;
+    width: 100%;
+    max-width: 360px;
+  }
+}
