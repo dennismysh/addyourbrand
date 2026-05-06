@@ -42,7 +42,17 @@ export default async function EditBrandPage({
       </header>
 
       <div className="space-y-8">
+        {/*
+          `key` ties the form's mount lifecycle to the brand's updatedAt.
+          Server actions (saveBrand, extractBrandFromAsset, createBrandFromPdf)
+          bump updatedAt; router.refresh() then re-renders this page with a
+          new key, forcing BrandForm to remount and re-init its local state
+          from the fresh initialProfile. Without this, useState's first-mount-
+          only init leaves stale empty values on screen even after extraction
+          repopulates the DB.
+        */}
         <BrandForm
+          key={brand.updatedAt.getTime()}
           brandId={brand.id}
           initialProfile={brand.profile}
           fontAssets={fontAssets}
