@@ -2,53 +2,68 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, MODEL } from "./anthropic";
 import type { BrandProfile } from "./types";
 
-// What Claude returns. Everything optional — the model fills only what it
-// can confidently extract from the brand guide. Empty fields are passed
-// through and left alone on the merge.
+// Required fields with explicit null escape hatch. The model can no longer
+// silently omit fields it didn't feel like extracting — it must either
+// provide a value or write null and explain in `notes`.
 export interface ExtractedBrandFields {
-  name?: string;
-  colors?: {
-    primary?: string;
-    secondary?: string;
-    accent?: string;
-    background?: string;
-    foreground?: string;
+  name: string | null;
+  colors: {
+    primary: string | null;
+    secondary: string | null;
+    accent: string | null;
+    background: string | null;
+    foreground: string | null;
   };
-  fonts?: {
-    heading?: string;
-    body?: string;
+  fonts: {
+    heading: string | null;
+    body: string | null;
   };
-  voiceSamples?: string[];
-  formulas?: string[];
-  brandFacts?: string;
-  // Free-form note the model uses to flag what was missing or ambiguous.
-  notes?: string;
+  voiceSamples: string[];
+  formulas: string[];
+  brandFacts: string | null;
+  notes: string;
 }
 
+// Marking these fields as required + nullable forces the model to either
+// produce a value or explicitly write null (and explain in notes). Without
+// `required`, structured outputs lets the model silently omit fields it
+// finds inconvenient — which is what was happening: colors and fonts kept
+// getting dropped despite explicit hex values in the source PDF.
 const EXTRACTION_SCHEMA = {
   type: "object",
   properties: {
-    name: { type: "string" },
+    name: { type: ["string", "null"] },
     colors: {
       type: "object",
       properties: {
-        primary: { type: "string", description: "Hex like #RRGGBB" },
-        secondary: { type: "string" },
-        accent: { type: "string" },
-        background: { type: "string" },
-        foreground: { type: "string" },
+        primary: {
+          type: ["string", "null"],
+          description: "Hex like #RRGGBB. null only if the guide truly has no palette.",
+        },
+        secondary: { type: ["string", "null"] },
+        accent: { type: ["string", "null"] },
+        background: { type: ["string", "null"] },
+        foreground: { type: ["string", "null"] },
       },
+      required: [
+        "primary",
+        "secondary",
+        "accent",
+        "background",
+        "foreground",
+      ],
       additionalProperties: false,
     },
     fonts: {
       type: "object",
       properties: {
         heading: {
-          type: "string",
+          type: ["string", "null"],
           description: "Font family name only — no weights or styles.",
         },
-        body: { type: "string" },
+        body: { type: ["string", "null"] },
       },
+      required: ["heading", "body"],
       additionalProperties: false,
     },
     voiceSamples: {
@@ -61,34 +76,43 @@ const EXTRACTION_SCHEMA = {
       type: "array",
       items: { type: "string" },
       description:
-        "Reusable headline or content patterns the brand uses, e.g. 'The truth about [X]'. Empty if none.",
+        "Reusable headline or content patterns the brand uses, e.g. 'The truth about [X]'. Empty array if none.",
     },
     brandFacts: {
-      type: "string",
+      type: ["string", "null"],
       description:
-        "Niche, audience, mission, products, distinctive POV — anything the renderer needs to know about the brand to write in its voice.",
+        "Niche, audience, mission, products, distinctive POV — a 2-4 sentence summary. null only if the guide is purely visual with no descriptive content.",
     },
     notes: {
       type: "string",
       description:
-        "One short paragraph noting what was confidently extracted vs. what wasn't present in the guide. Helps the user know what to fill in by hand.",
+        "One short paragraph noting what was extracted vs. what was set to null and why. If you returned null for any color or font, the notes MUST explain why (not present in guide, ambiguous, etc.). Required to be non-empty.",
     },
   },
+  required: [
+    "name",
+    "colors",
+    "fonts",
+    "voiceSamples",
+    "formulas",
+    "brandFacts",
+    "notes",
+  ],
   additionalProperties: false,
 } as const;
 
 const SYSTEM_PROMPT = `You are a brand-systems analyst. The user has uploaded a brand guide PDF (a document the brand uses internally to govern its visual + verbal identity). Your job is to extract the structured fields we need to populate a brand profile in our tooling.
 
-**Colors and fonts are nearly always present in a brand guide. Find them.** Brand guides almost always contain a color palette page (with named swatches like "Buddy Red", "Pixel Ink", etc.) and a typography page (named font stacks). If you don't see them in one pass, look harder — read the visible text on every page, including any palette tables, swatch grids, type-spec sheets, and footer text. Output what's actually shown on the pages, in the format below. Do NOT skip these fields just because they require visual parsing.
+**Brand guides almost always contain explicit color palettes and named typefaces. Find them.** Most guides have a dedicated "color palette" or "swatches" page listing primary, secondary, accent, background, and foreground colors with hex codes (e.g. "BUDDY RED · HEX #D64545"). They also have a "typography" or "type stack" page listing heading and body font families. **If those sections exist in the guide, you MUST extract the values.** Do not skip them. Read every page visually — palette pages often use a grid of colored swatches with the hex code printed below each.
 
-Rules:
-- Only output values that are actually in the guide. If a field genuinely isn't there, omit it — do not invent.
-- **Colors**: output as 6-digit hex (#RRGGBB). The guide will usually list HEX values directly (e.g. "HEX #D64545"). Use those verbatim. If only CMYK/RGB/Pantone is provided, convert to the closest hex.
-- **Fonts**: just the typeface family name (e.g. "Press Start 2P", "Inter"). Strip weights, sizes, and styles ("Inter Bold 14px" → "Inter").
-- **Voice samples**: pull verbatim sentences that demonstrate the brand's voice. Prefer the "tone of voice" / "voice & speech" / "sample lines" sections of the guide. 3-6 samples is ideal. Quote them exactly, including punctuation.
-- **Formulas**: only include if the guide explicitly cites recurring patterns/templates the brand uses for headlines or social copy. Empty array if not present.
-- **Brand facts**: a 2-4 sentence summary of niche, audience, mission, products. Lift specifics from the guide — don't paraphrase generically.
-- **Notes**: one short paragraph. Be honest about what was extracted vs what wasn't present.
+Output rules — read carefully:
+- **Every field in the schema is required.** Use \`null\` ONLY when the guide genuinely does not contain that information. Never use \`null\` as an escape hatch for "I'd rather not extract this."
+- **Colors**: 6-digit hex (#RRGGBB). The guide will usually list HEX values directly. Use those verbatim. If only CMYK/RGB/Pantone is shown, convert to the closest hex. \`null\` only if the guide has zero palette information at all.
+- **Fonts**: just the typeface family name (e.g. "Press Start 2P", "Inter"). Strip weights, sizes, and styles ("Inter Bold 14px" → "Inter"). \`null\` only if no typeface is named anywhere in the guide.
+- **Voice samples**: array of verbatim quoted sentences. Prefer the "tone of voice" / "voice & speech" / "sample lines" sections. 3-6 is ideal. Empty array if no example copy exists.
+- **Formulas**: array of recurring patterns/templates the brand explicitly cites for headlines or social copy. Empty array if not present.
+- **Brand facts**: a 2-4 sentence summary of niche, audience, mission, products, distinctive POV. Lift specifics from the guide. \`null\` only if the guide is purely visual.
+- **Notes**: required, non-empty. One short paragraph. **If you returned \`null\` for any color or font field, you MUST explain why in the notes** — be specific about which field and what the guide actually contains in that section.
 
 Return only the structured output. No preamble.`;
 
@@ -173,9 +197,9 @@ export function mergeExtractionIntoProfile(
   extracted: ExtractedBrandFields,
 ): BrandProfile {
   const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-  const validHex = (v: string | undefined): string | undefined =>
+  const validHex = (v: string | null | undefined): string | undefined =>
     v && HEX_RE.test(v) ? v : undefined;
-  const validFontFamily = (v: string | undefined): string | undefined => {
+  const validFontFamily = (v: string | null | undefined): string | undefined => {
     if (!v) return undefined;
     // Strip weights/styles defensively in case the prompt didn't (e.g.
     // "Press Start 2P Regular" → "Press Start 2P").
