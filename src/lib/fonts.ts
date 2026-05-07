@@ -89,17 +89,32 @@ async function fetchGoogleFontInner(
   }
   const css = await cssResp.text();
 
-  // Match any TTF URL in the CSS (not anchored to `src:`). Some font CSS
-  // returns multi-format `src: url(...woff2) format(...), url(...ttf) format(...)`
-  // declarations where the simpler regex anchored to `src:` would miss
-  // the TTF buried after the woff2.
-  const match = css.match(/(https?:\/\/[^\s)"]+\.ttf)/);
-  if (!match) {
+  // Pick a URL out of the CSS. Google's response varies:
+  //  - Static fonts (no `text=`): src: url(.../HASH.ttf) format('truetype')
+  //  - Subsetted fonts (with `text=`): src: url(.../l/font?kit=HASH) format('truetype')
+  //  - Multi-format Asian fonts: woff2 first, ttf later in the same src
+  //
+  // Strategy: collect every url(...) in the CSS, prefer one that obviously
+  // ends in .ttf, then fall back to the subset URL pattern, then the first
+  // URL period. Old-UA requests return TTF bytes from /l/font?kit= URLs
+  // even though the URL has no extension, so passing those to Satori works.
+  const urls = [...css.matchAll(/url\(([^)]+)\)/g)].map((m) =>
+    m[1].replace(/^['"]|['"]$/g, ""),
+  );
+  const ttfUrl = urls.find((u) => /\.ttf(\?|$)/.test(u));
+  const subsetUrl = urls.find((u) => u.includes("/l/font"));
+  const url = ttfUrl ?? subsetUrl ?? urls[0];
+  if (!url) {
     throw new Error(
-      `Couldn't find TTF in Google Fonts CSS for ${family} (weight ${weight}). CSS preview: ${css.slice(0, 200)}`,
+      `No font URL found in Google Fonts CSS for ${family} (weight ${weight}). CSS preview: ${css.slice(0, 200)}`,
     );
   }
-  const fontResp = await fetch(match[1]);
+  const fontResp = await fetch(url);
+  if (!fontResp.ok) {
+    throw new Error(
+      `Failed to download font bytes for ${family} (weight ${weight}) at ${url}`,
+    );
+  }
   const buf = await fontResp.arrayBuffer();
   FONT_CACHE.set(key, buf);
   return buf;
