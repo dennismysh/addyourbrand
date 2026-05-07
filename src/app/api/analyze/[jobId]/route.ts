@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getJob } from "@/lib/jobs";
-import type { TemplateAnalysis, BrandProfile } from "@/lib/types";
+import type { DocumentStructure } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 interface AnalyzePayload {
-  brand: BrandProfile;
-  brandId?: string;
   imageBase64: string;
   imageMediaType: string;
 }
 
-// Polled by the client every couple seconds. Returns the job's current
-// status. Owners only — checks userId on the job vs. session.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ jobId: string }> },
@@ -24,12 +20,14 @@ export async function GET(
   }
 
   const { jobId } = await params;
-  const job = await getJob<AnalyzePayload, TemplateAnalysis>("analyze", jobId);
+  const job = await getJob<AnalyzePayload, DocumentStructure>(
+    "analyze",
+    jobId,
+  );
   if (!job || job.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Don't echo the imageBase64 payload back — clients only need status + result.
   return NextResponse.json({
     status: job.status,
     result: job.result,

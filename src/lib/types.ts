@@ -40,173 +40,378 @@ export const BrandProfileSchema = z.object({
 
 export type BrandProfile = z.infer<typeof BrandProfileSchema>;
 
-// --- Template analysis output (what Claude returns) --------------------------
+// --- Document structure (preservation mode) ---------------------------------
+// The analyzer extracts the template's content as a sequence of typed blocks.
+// Text is verbatim — no domain swaps, no voice rewrites at this stage.
+// The brand renderer styles each block kind in the user's brand identity.
 
-export const TextRoleEnum = z.enum([
-  "headline",
-  "subheadline",
-  "body",
-  "list_item",
-  "numbered_step",
-  "callout",
-  "cta",
-  "footer",
-  "quote",
-  "label",
-  "decorative",
-]);
-export type TextRole = z.infer<typeof TextRoleEnum>;
+const BlockBase = {
+  // 1 = primary (hero text), 2 = supporting, 3 = fine-print
+  emphasis: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(2),
+};
 
-export const TextBlockSchema = z.object({
-  role: TextRoleEnum,
-  // Original copy from the template (transcribed by the model).
-  original: z.string(),
-  // Brand-voice rewrite using the brand's facts/formulas.
-  rewritten: z.string(),
-  // What this text block is *for* — informs the layout decision later.
-  intent: z.string(),
-  // Approximate position on the canvas (0–1 normalized).
-  position: z.object({
-    x: z.number().min(0).max(1),
-    y: z.number().min(0).max(1),
-    w: z.number().min(0).max(1),
-    h: z.number().min(0).max(1),
-  }),
-  emphasis: z.enum(["primary", "secondary", "tertiary"]),
+export const HeadingBlockSchema = z.object({
+  kind: z.literal("heading"),
+  level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  text: z.string(),
+  ...BlockBase,
 });
 
-export const LayoutArchetypeEnum = z.enum([
-  "hero_single",
-  "list_5_tips",
-  "list_3_steps",
-  "quote_card",
-  "before_after",
-  "framework_diagram",
-  "stat_callout",
-  "checklist",
-  "mixed",
-]);
-
-export const TemplateAnalysisSchema = z.object({
-  archetype: LayoutArchetypeEnum,
-  // Overall design vibe (informs how brand colors are mapped).
-  mood: z.string(),
-  background: z.object({
-    style: z.enum(["solid", "gradient", "image", "patterned"]),
-    description: z.string(),
-  }),
-  blocks: z.array(TextBlockSchema),
-  // What the original template appears to be promoting / teaching.
-  topic: z.string(),
+export const BodyBlockSchema = z.object({
+  kind: z.literal("body"),
+  text: z.string(),
+  ...BlockBase,
 });
 
-export type TemplateAnalysis = z.infer<typeof TemplateAnalysisSchema>;
+export const ListBlockSchema = z.object({
+  kind: z.literal("list"),
+  ordered: z.boolean(),
+  items: z.array(z.string()),
+  ...BlockBase,
+});
 
-// JSON Schema (for Claude's structured outputs) — derived shape, kept in sync manually.
-// We hand-write this rather than auto-deriving so the model gets clean descriptions.
-export const TEMPLATE_ANALYSIS_JSON_SCHEMA = {
+export const TableBlockSchema = z.object({
+  kind: z.literal("table"),
+  // Optional column headers row.
+  columnHeaders: z.array(z.string()).nullable(),
+  // Each row is an array of cell strings (same length as columnHeaders if present).
+  rows: z.array(z.array(z.string())),
+  ...BlockBase,
+});
+
+export const QuoteBlockSchema = z.object({
+  kind: z.literal("quote"),
+  text: z.string(),
+  attribution: z.string().nullable(),
+  ...BlockBase,
+});
+
+export const CalloutBlockSchema = z.object({
+  kind: z.literal("callout"),
+  // Tone hints help the renderer pick a brand color (info → accent, warn → red, etc.)
+  tone: z.enum(["info", "warn", "success", "neutral"]),
+  text: z.string(),
+  ...BlockBase,
+});
+
+export const StatBlockSchema = z.object({
+  kind: z.literal("stat"),
+  // The big number / phrase ("5x", "$10K", "3 days")
+  value: z.string(),
+  // Caption underneath ("faster onboarding")
+  label: z.string(),
+  ...BlockBase,
+});
+
+export const StepBlockSchema = z.object({
+  kind: z.literal("step"),
+  index: z.number().int().min(1),
+  title: z.string(),
+  body: z.string().nullable(),
+  ...BlockBase,
+});
+
+export const KeyValueBlockSchema = z.object({
+  kind: z.literal("keyvalue"),
+  // Term-definition pairs (glossary, spec sheet, do/don't lists)
+  pairs: z.array(z.object({ term: z.string(), definition: z.string() })),
+  ...BlockBase,
+});
+
+export const ChecklistBlockSchema = z.object({
+  kind: z.literal("checklist"),
+  items: z.array(z.object({ text: z.string(), checked: z.boolean() })),
+  ...BlockBase,
+});
+
+export const ComparisonBlockSchema = z.object({
+  kind: z.literal("comparison"),
+  // Two-column layouts (before/after, do/don't, pros/cons)
+  leftLabel: z.string(),
+  rightLabel: z.string(),
+  leftItems: z.array(z.string()),
+  rightItems: z.array(z.string()),
+  ...BlockBase,
+});
+
+export const SectionLabelBlockSchema = z.object({
+  kind: z.literal("sectionLabel"),
+  // Small all-caps label that introduces a new section ("Pros", "Step 1", "Inside this guide")
+  text: z.string(),
+  ...BlockBase,
+});
+
+export const DividerBlockSchema = z.object({
+  kind: z.literal("divider"),
+  ...BlockBase,
+});
+
+export const FooterBlockSchema = z.object({
+  kind: z.literal("footer"),
+  text: z.string(),
+  ...BlockBase,
+});
+
+export const LogoSlotBlockSchema = z.object({
+  kind: z.literal("logoSlot"),
+  position: z.enum(["top", "bottom", "topLeft", "topRight", "bottomLeft", "bottomRight"]),
+  ...BlockBase,
+});
+
+export const BlockSchema = z.discriminatedUnion("kind", [
+  HeadingBlockSchema,
+  BodyBlockSchema,
+  ListBlockSchema,
+  TableBlockSchema,
+  QuoteBlockSchema,
+  CalloutBlockSchema,
+  StatBlockSchema,
+  StepBlockSchema,
+  KeyValueBlockSchema,
+  ChecklistBlockSchema,
+  ComparisonBlockSchema,
+  SectionLabelBlockSchema,
+  DividerBlockSchema,
+  FooterBlockSchema,
+  LogoSlotBlockSchema,
+]);
+
+export type Block = z.infer<typeof BlockSchema>;
+
+export const DocumentStructureSchema = z.object({
+  // Overall layout intent.
+  // "flow" = top-to-bottom (most templates), "centered" = single hero on a card
+  layout: z.enum(["flow", "centered"]),
+  // Verbatim title, surfaced for filename + page metadata.
+  title: z.string(),
+  // Content blocks in document order.
+  blocks: z.array(BlockSchema),
+});
+
+export type DocumentStructure = z.infer<typeof DocumentStructureSchema>;
+
+// JSON Schema for Claude's structured outputs. Hand-written to keep tight
+// descriptions and explicit `required` lists per block kind. Each block kind
+// gets a separate object schema in the oneOf.
+//
+// Properties shared across all block kinds: `kind`, `emphasis`. Plus per-kind
+// fields. Required list per kind enforces the model fills the right shape.
+function blockSchema(
+  kind: string,
+  extraProperties: Record<string, unknown>,
+  extraRequired: string[],
+) {
+  return {
+    type: "object",
+    properties: {
+      kind: { type: "string", const: kind },
+      emphasis: {
+        type: "number",
+        enum: [1, 2, 3],
+        description:
+          "1=primary (hero), 2=supporting, 3=fine-print. Reflects visual weight in the source.",
+      },
+      ...extraProperties,
+    },
+    required: ["kind", "emphasis", ...extraRequired],
+    additionalProperties: false,
+  };
+}
+
+export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
   type: "object",
   properties: {
-    archetype: {
+    layout: {
       type: "string",
-      enum: [
-        "hero_single",
-        "list_5_tips",
-        "list_3_steps",
-        "quote_card",
-        "before_after",
-        "framework_diagram",
-        "stat_callout",
-        "checklist",
-        "mixed",
-      ],
-      description: "The closest layout archetype this template fits",
+      enum: ["flow", "centered"],
+      description:
+        "'flow' for top-to-bottom multi-block templates (most cases). 'centered' for single-hero cards.",
     },
-    mood: {
+    title: {
       type: "string",
       description:
-        "Overall vibe: e.g., 'minimal editorial', 'playful y2k', 'serious professional'",
-    },
-    topic: {
-      type: "string",
-      description: "What the template is teaching or promoting",
-    },
-    background: {
-      type: "object",
-      properties: {
-        style: {
-          type: "string",
-          enum: ["solid", "gradient", "image", "patterned"],
-        },
-        description: { type: "string" },
-      },
-      required: ["style", "description"],
-      additionalProperties: false,
+        "Verbatim title of the source template. The first heading or the most prominent text.",
     },
     blocks: {
       type: "array",
-      description:
-        "Each text block on the template, in reading order, with brand-voice rewrites",
+      description: "Content blocks in document order (top to bottom).",
       items: {
-        type: "object",
-        properties: {
-          role: {
-            type: "string",
-            enum: [
-              "headline",
-              "subheadline",
-              "body",
-              "list_item",
-              "numbered_step",
-              "callout",
-              "cta",
-              "footer",
-              "quote",
-              "label",
-              "decorative",
-            ],
-          },
-          original: {
-            type: "string",
-            description: "Verbatim text from the template",
-          },
-          rewritten: {
-            type: "string",
-            description:
-              "Same role/length, rewritten in the brand's voice using the brand facts/formulas",
-          },
-          intent: {
-            type: "string",
-            description: "What this block accomplishes in the design",
-          },
-          position: {
-            type: "object",
-            properties: {
-              x: { type: "number" },
-              y: { type: "number" },
-              w: { type: "number" },
-              h: { type: "number" },
+        oneOf: [
+          blockSchema(
+            "heading",
+            {
+              level: { type: "number", enum: [1, 2, 3] },
+              text: { type: "string", description: "Verbatim heading text." },
             },
-            required: ["x", "y", "w", "h"],
-            additionalProperties: false,
-          },
-          emphasis: {
-            type: "string",
-            enum: ["primary", "secondary", "tertiary"],
-          },
-        },
-        required: [
-          "role",
-          "original",
-          "rewritten",
-          "intent",
-          "position",
-          "emphasis",
+            ["level", "text"],
+          ),
+          blockSchema(
+            "body",
+            {
+              text: {
+                type: "string",
+                description: "A paragraph of body text, verbatim.",
+              },
+            },
+            ["text"],
+          ),
+          blockSchema(
+            "list",
+            {
+              ordered: {
+                type: "boolean",
+                description: "true for numbered lists, false for bullets.",
+              },
+              items: {
+                type: "array",
+                items: { type: "string" },
+                description: "Each list item, verbatim.",
+              },
+            },
+            ["ordered", "items"],
+          ),
+          blockSchema(
+            "table",
+            {
+              columnHeaders: {
+                type: ["array", "null"],
+                items: { type: "string" },
+                description: "Column header row, verbatim. null if no headers.",
+              },
+              rows: {
+                type: "array",
+                items: { type: "array", items: { type: "string" } },
+                description:
+                  "Each row's cell strings, verbatim, same length as columnHeaders.",
+              },
+            },
+            ["columnHeaders", "rows"],
+          ),
+          blockSchema(
+            "quote",
+            {
+              text: { type: "string", description: "The quote, verbatim." },
+              attribution: {
+                type: ["string", "null"],
+                description: "Quote attribution if shown. null otherwise.",
+              },
+            },
+            ["text", "attribution"],
+          ),
+          blockSchema(
+            "callout",
+            {
+              tone: {
+                type: "string",
+                enum: ["info", "warn", "success", "neutral"],
+              },
+              text: { type: "string" },
+            },
+            ["tone", "text"],
+          ),
+          blockSchema(
+            "stat",
+            {
+              value: {
+                type: "string",
+                description:
+                  "The big number / phrase, verbatim ('5x', '$10K', '3 days').",
+              },
+              label: {
+                type: "string",
+                description: "Caption underneath the value.",
+              },
+            },
+            ["value", "label"],
+          ),
+          blockSchema(
+            "step",
+            {
+              index: { type: "integer", minimum: 1 },
+              title: { type: "string" },
+              body: {
+                type: ["string", "null"],
+                description: "Step description if any. null if just a title.",
+              },
+            },
+            ["index", "title", "body"],
+          ),
+          blockSchema(
+            "keyvalue",
+            {
+              pairs: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    term: { type: "string" },
+                    definition: { type: "string" },
+                  },
+                  required: ["term", "definition"],
+                  additionalProperties: false,
+                },
+                description:
+                  "Term/definition pairs (glossary, spec sheet, do/don't).",
+              },
+            },
+            ["pairs"],
+          ),
+          blockSchema(
+            "checklist",
+            {
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    text: { type: "string" },
+                    checked: { type: "boolean" },
+                  },
+                  required: ["text", "checked"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            ["items"],
+          ),
+          blockSchema(
+            "comparison",
+            {
+              leftLabel: { type: "string" },
+              rightLabel: { type: "string" },
+              leftItems: { type: "array", items: { type: "string" } },
+              rightItems: { type: "array", items: { type: "string" } },
+            },
+            ["leftLabel", "rightLabel", "leftItems", "rightItems"],
+          ),
+          blockSchema(
+            "sectionLabel",
+            { text: { type: "string" } },
+            ["text"],
+          ),
+          blockSchema("divider", {}, []),
+          blockSchema("footer", { text: { type: "string" } }, ["text"]),
+          blockSchema(
+            "logoSlot",
+            {
+              position: {
+                type: "string",
+                enum: [
+                  "top",
+                  "bottom",
+                  "topLeft",
+                  "topRight",
+                  "bottomLeft",
+                  "bottomRight",
+                ],
+              },
+            },
+            ["position"],
+          ),
         ],
-        additionalProperties: false,
       },
     },
   },
-  required: ["archetype", "mood", "topic", "background", "blocks"],
+  required: ["layout", "title", "blocks"],
   additionalProperties: false,
 } as const;

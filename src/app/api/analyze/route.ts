@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
-import { BrandProfileSchema } from "@/lib/types";
 import { createJob, triggerBackground } from "@/lib/jobs";
 
 export const runtime = "nodejs";
-// This sync route just enqueues a job — the heavy AI work runs in
-// netlify/functions/analyze-background.mts (15-minute timeout).
+// Sync route — just enqueues. The actual analysis runs in
+// netlify/functions/analyze-background.mts (15-min timeout).
 export const maxDuration = 30;
 
+// Preservation-mode analyzer just needs the template image — brand is a
+// render-time concern, no longer fed into structure extraction.
 const RequestSchema = z.object({
-  brand: BrandProfileSchema,
   imageBase64: z.string().min(1),
   imageMediaType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
-  brandId: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -39,8 +38,6 @@ export async function POST(req: Request) {
 
   try {
     const job = await createJob("analyze", session.user.id, parsed.data);
-    // Fire-and-forget. The background function picks up the job by id and
-    // updates the blob with the result; client polls /api/analyze/[jobId].
     await triggerBackground("analyze", job.id);
     return NextResponse.json({ jobId: job.id }, { status: 202 });
   } catch (err) {

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandRenderer } from "@/components/brand-renderer";
-import type { BrandProfile, TemplateAnalysis } from "@/lib/types";
+import type { BrandProfile, DocumentStructure } from "@/lib/types";
 import { Loader2, Upload, ArrowLeft, Wand2, Download } from "lucide-react";
 
 type SupportedMime = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
@@ -43,8 +43,7 @@ export function AppClient({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageMime, setImageMime] = useState<SupportedMime | null>(null);
-  const [analysis, setAnalysis] = useState<TemplateAnalysis | null>(null);
-  const [referencesUsed, setReferencesUsed] = useState(0);
+  const [doc, setDoc] = useState<DocumentStructure | null>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +53,8 @@ export function AppClient({
     if (!found) return;
     setSelectedBrandId(id);
     setBrand(found.profile);
-    setAnalysis(null); // re-run with new brand
-    setReferencesUsed(0);
+    // Brand change doesn't invalidate the document — same content, new skin.
+    // The renderer just re-styles whatever's in `doc` with the new brand.
   }
 
   async function handleFile(file: File) {
@@ -64,7 +63,7 @@ export function AppClient({
       return;
     }
     setError(null);
-    setAnalysis(null);
+    setDoc(null);
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
     const b64 = await fileToBase64(file);
@@ -77,15 +76,10 @@ export function AppClient({
     setLoading(true);
     setError(null);
     try {
-      // Enqueue the job. /api/analyze returns 202 + jobId; the actual AI work
-      // runs in a Netlify background function (up to 15 min). We poll until
-      // status is done|error.
       const enqueueRes = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          brand,
-          brandId: selectedBrandId,
           imageBase64,
           imageMediaType: imageMime,
         }),
@@ -96,8 +90,9 @@ export function AppClient({
       }
       const jobId: string = enqueueData.jobId;
 
-      // Poll up to ~3 min total at 2s intervals. Adaptive thinking + xhigh
-      // effort on a complex template usually finishes in 30–90s.
+      // Poll up to ~3 min total at 2s intervals. Preservation-mode extraction
+      // is faster than the old transmute-mode (no rewrite step) — typically
+      // 20-60s.
       const start = Date.now();
       const TIMEOUT_MS = 3 * 60_000;
       const POLL_MS = 2_000;
@@ -115,16 +110,12 @@ export function AppClient({
         }
         const status = await statusRes.json();
         if (status.status === "done") {
-          setAnalysis(status.result);
-          // referencesUsed isn't tracked through the job pattern yet —
-          // surfaces as 0 until we wire it through the job result envelope.
-          setReferencesUsed(0);
+          setDoc(status.result);
           return;
         }
         if (status.status === "error") {
           throw new Error(status.error ?? "Analysis failed");
         }
-        // pending | running → keep polling
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -134,14 +125,14 @@ export function AppClient({
   }
 
   async function downloadPng() {
-    if (!analysis) return;
+    if (!doc) return;
     setExporting(true);
     setError(null);
     try {
       const res = await fetch("/api/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand, analysis }),
+        body: JSON.stringify({ brand, doc }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -203,7 +194,7 @@ export function AppClient({
               setPreviewUrl(null);
               setImageBase64(null);
               setImageMime(null);
-              setAnalysis(null);
+              setDoc(null);
             }}
           />
           <Button
@@ -230,8 +221,8 @@ export function AppClient({
           <h2 className="font-serif text-2xl font-semibold">3. Your design</h2>
           <div className="flex flex-col items-center gap-4">
             <div className="rounded-lg border border-dashed border-border p-4">
-              {analysis ? (
-                <BrandRenderer brand={brand} analysis={analysis} width={360} />
+              {doc ? (
+                <BrandRenderer brand={brand} doc={doc} width={360} />
               ) : (
                 <div className="preview-23 flex items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
                   Your rebranded 1080×1620
@@ -240,14 +231,8 @@ export function AppClient({
                 </div>
               )}
             </div>
-            {analysis ? (
+            {doc ? (
               <>
-                {referencesUsed > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Style-matched against {referencesUsed} reference image
-                    {referencesUsed === 1 ? "" : "s"} from your brand library.
-                  </p>
-                ) : null}
                 <Button
                   size="lg"
                   variant="default"
@@ -267,10 +252,10 @@ export function AppClient({
                 </Button>
                 <details className="w-full max-w-sm rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
                   <summary className="cursor-pointer font-medium text-foreground">
-                    Analysis details
+                    Document structure
                   </summary>
                   <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words">
-                    {JSON.stringify(analysis, null, 2)}
+                    {JSON.stringify(doc, null, 2)}
                   </pre>
                 </details>
               </>
