@@ -5,9 +5,6 @@ import type { FontDef } from "./types";
 
 const FONT_CACHE = new Map<string, ArrayBuffer>();
 
-// Top-level dispatch: pulls font bytes from either the user's uploaded assets
-// or the Google Fonts CDN. Caller hands us a FontDef and we return raw TTF
-// bytes Satori can register. Cached at module scope so warm functions reuse.
 export async function fetchFont(
   font: FontDef,
   weight: number,
@@ -20,9 +17,6 @@ export async function fetchFont(
   return fetchGoogleFont(font.family, weight, text);
 }
 
-// Asset font: resolve assetId → blobKey, then read bytes from the
-// brand-assets store. brandId is optional but tightens the security check
-// when we have it (font has to belong to the brand the renderer is rendering).
 async function fetchUploadedFont(
   assetId: string,
   brandId?: string,
@@ -82,7 +76,8 @@ async function fetchGoogleFontInner(
 
   const cssResp = await fetch(cssUrl.toString(), {
     headers: {
-      // Older UAs get TTF; newer get woff2 which Satori can't parse.
+      // Older UAs typically get TTF served. Some fonts (especially with
+      // many unicode-range subsets) still come back as multi-format.
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/534.30 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1",
     },
@@ -93,10 +88,15 @@ async function fetchGoogleFontInner(
     );
   }
   const css = await cssResp.text();
-  const match = css.match(/src:\s*url\((https:\/\/[^)]+\.ttf)\)/);
+
+  // Match any TTF URL in the CSS (not anchored to `src:`). Some font CSS
+  // returns multi-format `src: url(...woff2) format(...), url(...ttf) format(...)`
+  // declarations where the simpler regex anchored to `src:` would miss
+  // the TTF buried after the woff2.
+  const match = css.match(/(https?:\/\/[^\s)"]+\.ttf)/);
   if (!match) {
     throw new Error(
-      `Couldn't find TTF in Google Fonts CSS for ${family} (weight ${weight})`,
+      `Couldn't find TTF in Google Fonts CSS for ${family} (weight ${weight}). CSS preview: ${css.slice(0, 200)}`,
     );
   }
   const fontResp = await fetch(match[1]);

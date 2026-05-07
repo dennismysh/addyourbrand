@@ -3,8 +3,29 @@ import { z } from "zod";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import { BrandProfileSchema, DocumentStructureSchema } from "@/lib/types";
+import type { FontDef } from "@/lib/types";
 import { buildDesignJsx, RENDER_DIMS } from "@/lib/render-jsx";
-import { fetchFont } from "@/lib/fonts";
+import { fetchFont, fetchGoogleFont } from "@/lib/fonts";
+
+// If the brand's font can't be fetched (e.g., a pixel font with weird CSS,
+// or a Japanese font with multi-format declarations our regex misses), fall
+// back to Inter. Better to render something with a generic typeface than to
+// fail the entire export.
+async function fetchFontOrFallback(
+  font: FontDef,
+  weight: number,
+  text: string,
+): Promise<ArrayBuffer> {
+  try {
+    return await fetchFont(font, weight, text);
+  } catch (err) {
+    console.warn(
+      `[render] font fetch failed for ${font.family} weight ${weight}, falling back to Inter:`,
+      err instanceof Error ? err.message : err,
+    );
+    return fetchGoogleFont("Inter", weight, text);
+  }
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -86,10 +107,10 @@ export async function POST(req: Request) {
   try {
     const [headingRegular, headingBold, bodyRegular, bodyBold] =
       await Promise.all([
-        fetchFont(brand.fonts.heading, 400, allText),
-        fetchFont(brand.fonts.heading, 700, allText),
-        fetchFont(brand.fonts.body, 400, allText),
-        fetchFont(brand.fonts.body, 600, allText),
+        fetchFontOrFallback(brand.fonts.heading, 400, allText),
+        fetchFontOrFallback(brand.fonts.heading, 700, allText),
+        fetchFontOrFallback(brand.fonts.body, 400, allText),
+        fetchFontOrFallback(brand.fonts.body, 600, allText),
       ]);
 
     const tree = buildDesignJsx(brand, doc) as unknown as React.ReactElement;
