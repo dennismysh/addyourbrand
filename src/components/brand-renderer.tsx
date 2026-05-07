@@ -483,7 +483,7 @@ function Checklist({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", marginBottom: scale(24) }}>
-      {block.items.map((item, i) => (
+      {block.checkItems.map((item, i) => (
         <div
           key={i}
           style={{

@@ -120,7 +120,9 @@ export const KeyValueBlockSchema = z.object({
 
 export const ChecklistBlockSchema = z.object({
   kind: z.literal("checklist"),
-  items: z.array(z.object({ text: z.string(), checked: z.boolean() })),
+  // Renamed from `items` to avoid a field-type collision with list.items
+  // (string[]) when serializing both kinds through a single flat JSON schema.
+  checkItems: z.array(z.object({ text: z.string(), checked: z.boolean() })),
   ...BlockBase,
 });
 
@@ -190,34 +192,14 @@ export const DocumentStructureSchema = z.object({
 
 export type DocumentStructure = z.infer<typeof DocumentStructureSchema>;
 
-// JSON Schema for Claude's structured outputs. Hand-written to keep tight
-// descriptions and explicit `required` lists per block kind. Each block kind
-// gets a separate object schema in the oneOf.
+// JSON Schema for Claude's structured outputs.
 //
-// Properties shared across all block kinds: `kind`, `emphasis`. Plus per-kind
-// fields. Required list per kind enforces the model fills the right shape.
-function blockSchema(
-  kind: string,
-  extraProperties: Record<string, unknown>,
-  extraRequired: string[],
-) {
-  return {
-    type: "object",
-    properties: {
-      kind: { type: "string", const: kind },
-      emphasis: {
-        type: "number",
-        enum: [1, 2, 3],
-        description:
-          "1=primary (hero), 2=supporting, 3=fine-print. Reflects visual weight in the source.",
-      },
-      ...extraProperties,
-    },
-    required: ["kind", "emphasis", ...extraRequired],
-    additionalProperties: false,
-  };
-}
-
+// Flat single-block schema. Anthropic's grammar compiler choked on a 15-branch
+// anyOf with per-branch required lists ("compiled grammar too large"), so all
+// per-kind fields live as nullable optional siblings on one object. The `kind`
+// discriminator + the prompt tell the model which fields to populate. Zod's
+// `BlockSchema` discriminated union enforces correctness post-parse — the
+// model can't, e.g., return kind=heading without `level` and slip through.
 export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
   type: "object",
   properties: {
@@ -234,187 +216,159 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
     },
     blocks: {
       type: "array",
-      description: "Content blocks in document order (top to bottom).",
+      description:
+        "Content blocks in document order. Each block has a `kind` discriminator and fills only the fields relevant to that kind (others stay null).",
       items: {
-        // Anthropic's structured outputs accepts `anyOf` but not `oneOf`.
-        // Each branch has a const `kind` so the variants are mutually
-        // exclusive in practice — anyOf and oneOf produce the same result.
-        anyOf: [
-          blockSchema(
-            "heading",
-            {
-              level: { type: "number", enum: [1, 2, 3] },
-              text: { type: "string", description: "Verbatim heading text." },
+        type: "object",
+        properties: {
+          kind: {
+            type: "string",
+            enum: [
+              "heading",
+              "body",
+              "list",
+              "table",
+              "quote",
+              "callout",
+              "stat",
+              "step",
+              "keyvalue",
+              "checklist",
+              "comparison",
+              "sectionLabel",
+              "divider",
+              "footer",
+              "logoSlot",
+            ],
+          },
+          emphasis: {
+            type: "number",
+            enum: [1, 2, 3],
+            description:
+              "1=primary (hero), 2=supporting, 3=fine-print. Reflects visual weight in the source.",
+          },
+          // Per-kind fields. All nullable. Fill ONLY the ones for the chosen `kind`.
+          level: {
+            type: ["number", "null"],
+            enum: [1, 2, 3, null],
+            description: "heading: 1, 2, or 3. null otherwise.",
+          },
+          text: {
+            type: ["string", "null"],
+            description:
+              "Verbatim text for: heading, body, quote, callout, sectionLabel, footer. null for other kinds.",
+          },
+          ordered: {
+            type: ["boolean", "null"],
+            description: "list: true for numbered, false for bullets. null otherwise.",
+          },
+          items: {
+            type: ["array", "null"],
+            items: { type: "string" },
+            description: "list: array of item strings, verbatim. null for other kinds.",
+          },
+          columnHeaders: {
+            type: ["array", "null"],
+            items: { type: "string" },
+            description:
+              "table: column header row, verbatim. Set to null if the table has no header row.",
+          },
+          rows: {
+            type: ["array", "null"],
+            items: { type: "array", items: { type: "string" } },
+            description:
+              "table: each row's cells, verbatim. Same length as columnHeaders if present. null for other kinds.",
+          },
+          attribution: {
+            type: ["string", "null"],
+            description: "quote: attribution if shown. null otherwise.",
+          },
+          tone: {
+            type: ["string", "null"],
+            enum: ["info", "warn", "success", "neutral", null],
+            description: "callout: pick one. null for other kinds.",
+          },
+          value: {
+            type: ["string", "null"],
+            description:
+              "stat: the big number/phrase, verbatim ('5x', '$10K'). null for other kinds.",
+          },
+          label: {
+            type: ["string", "null"],
+            description: "stat: caption under the value. null for other kinds.",
+          },
+          index: {
+            type: ["integer", "null"],
+            description: "step: 1-based index. null for other kinds.",
+          },
+          title: {
+            type: ["string", "null"],
+            description: "step: step title. null for other kinds.",
+          },
+          body: {
+            type: ["string", "null"],
+            description: "step: optional description under the title. null for other kinds.",
+          },
+          pairs: {
+            type: ["array", "null"],
+            items: {
+              type: "object",
+              properties: {
+                term: { type: "string" },
+                definition: { type: "string" },
+              },
+              required: ["term", "definition"],
+              additionalProperties: false,
             },
-            ["level", "text"],
-          ),
-          blockSchema(
-            "body",
-            {
-              text: {
-                type: "string",
-                description: "A paragraph of body text, verbatim.",
+            description: "keyvalue: term/definition pairs. null for other kinds.",
+          },
+          checkItems: {
+            type: ["array", "null"],
+            items: {
+              type: "object",
+              properties: {
+                text: { type: "string" },
+                checked: { type: "boolean" },
               },
+              required: ["text", "checked"],
+              additionalProperties: false,
             },
-            ["text"],
-          ),
-          blockSchema(
-            "list",
-            {
-              ordered: {
-                type: "boolean",
-                description: "true for numbered lists, false for bullets.",
-              },
-              items: {
-                type: "array",
-                items: { type: "string" },
-                description: "Each list item, verbatim.",
-              },
-            },
-            ["ordered", "items"],
-          ),
-          blockSchema(
-            "table",
-            {
-              columnHeaders: {
-                type: ["array", "null"],
-                items: { type: "string" },
-                description: "Column header row, verbatim. null if no headers.",
-              },
-              rows: {
-                type: "array",
-                items: { type: "array", items: { type: "string" } },
-                description:
-                  "Each row's cell strings, verbatim, same length as columnHeaders.",
-              },
-            },
-            ["columnHeaders", "rows"],
-          ),
-          blockSchema(
-            "quote",
-            {
-              text: { type: "string", description: "The quote, verbatim." },
-              attribution: {
-                type: ["string", "null"],
-                description: "Quote attribution if shown. null otherwise.",
-              },
-            },
-            ["text", "attribution"],
-          ),
-          blockSchema(
-            "callout",
-            {
-              tone: {
-                type: "string",
-                enum: ["info", "warn", "success", "neutral"],
-              },
-              text: { type: "string" },
-            },
-            ["tone", "text"],
-          ),
-          blockSchema(
-            "stat",
-            {
-              value: {
-                type: "string",
-                description:
-                  "The big number / phrase, verbatim ('5x', '$10K', '3 days').",
-              },
-              label: {
-                type: "string",
-                description: "Caption underneath the value.",
-              },
-            },
-            ["value", "label"],
-          ),
-          blockSchema(
-            "step",
-            {
-              // Anthropic structured outputs doesn't accept `minimum`/`maximum`
-              // (numerical constraints not supported). The model is told in the
-              // prompt that index starts at 1.
-              index: { type: "integer" },
-              title: { type: "string" },
-              body: {
-                type: ["string", "null"],
-                description: "Step description if any. null if just a title.",
-              },
-            },
-            ["index", "title", "body"],
-          ),
-          blockSchema(
-            "keyvalue",
-            {
-              pairs: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    term: { type: "string" },
-                    definition: { type: "string" },
-                  },
-                  required: ["term", "definition"],
-                  additionalProperties: false,
-                },
-                description:
-                  "Term/definition pairs (glossary, spec sheet, do/don't).",
-              },
-            },
-            ["pairs"],
-          ),
-          blockSchema(
-            "checklist",
-            {
-              items: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    text: { type: "string" },
-                    checked: { type: "boolean" },
-                  },
-                  required: ["text", "checked"],
-                  additionalProperties: false,
-                },
-              },
-            },
-            ["items"],
-          ),
-          blockSchema(
-            "comparison",
-            {
-              leftLabel: { type: "string" },
-              rightLabel: { type: "string" },
-              leftItems: { type: "array", items: { type: "string" } },
-              rightItems: { type: "array", items: { type: "string" } },
-            },
-            ["leftLabel", "rightLabel", "leftItems", "rightItems"],
-          ),
-          blockSchema(
-            "sectionLabel",
-            { text: { type: "string" } },
-            ["text"],
-          ),
-          blockSchema("divider", {}, []),
-          blockSchema("footer", { text: { type: "string" } }, ["text"]),
-          blockSchema(
-            "logoSlot",
-            {
-              position: {
-                type: "string",
-                enum: [
-                  "top",
-                  "bottom",
-                  "topLeft",
-                  "topRight",
-                  "bottomLeft",
-                  "bottomRight",
-                ],
-              },
-            },
-            ["position"],
-          ),
-        ],
+            description: "checklist: items with checked-state. null for other kinds.",
+          },
+          leftLabel: {
+            type: ["string", "null"],
+            description: "comparison: left column label. null for other kinds.",
+          },
+          rightLabel: {
+            type: ["string", "null"],
+            description: "comparison: right column label. null for other kinds.",
+          },
+          leftItems: {
+            type: ["array", "null"],
+            items: { type: "string" },
+            description: "comparison: left column items, verbatim.",
+          },
+          rightItems: {
+            type: ["array", "null"],
+            items: { type: "string" },
+            description: "comparison: right column items, verbatim.",
+          },
+          position: {
+            type: ["string", "null"],
+            enum: [
+              "top",
+              "bottom",
+              "topLeft",
+              "topRight",
+              "bottomLeft",
+              "bottomRight",
+              null,
+            ],
+            description: "logoSlot: where the logo sits on the canvas. null for other kinds.",
+          },
+        },
+        required: ["kind", "emphasis"],
+        additionalProperties: false,
       },
     },
   },

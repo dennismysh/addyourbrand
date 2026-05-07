@@ -447,7 +447,7 @@ function renderChecklist(
     type: "div",
     props: {
       style: { display: "flex", flexDirection: "column", marginBottom: 24 },
-      children: block.items.map((item, i) => ({
+      children: block.checkItems.map((item, i) => ({
         type: "div",
         key: i,
         props: {

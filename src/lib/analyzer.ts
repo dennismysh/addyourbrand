@@ -31,6 +31,26 @@ Block kinds available:
 - **footer**: small fine-print at the bottom (handles, dates, sources, copyrights)
 - **logoSlot**: an explicit logo placement on the source. Use \`position\` to indicate where on the canvas.
 
+**Fields per block kind.** Each block object has \`kind\` and \`emphasis\` plus a flat list of optional fields. **Fill only the fields for the chosen kind** — leave the rest \`null\`.
+
+| kind | fields to fill |
+|---|---|
+| heading | level (1/2/3), text |
+| body | text |
+| list | ordered, items (string array) |
+| table | columnHeaders (string array or null), rows (array of string arrays) |
+| quote | text, attribution (or null) |
+| callout | tone (info/warn/success/neutral), text |
+| stat | value, label |
+| step | index (starts at 1), title, body (or null) |
+| keyvalue | pairs (array of {term, definition}) |
+| checklist | checkItems (array of {text, checked}) |
+| comparison | leftLabel, rightLabel, leftItems, rightItems |
+| sectionLabel | text |
+| divider | (none) |
+| footer | text |
+| logoSlot | position (top/bottom/topLeft/topRight/bottomLeft/bottomRight) |
+
 Picking the right kind:
 
 - A 2-column grid with cell borders → table (do NOT flatten into list items)

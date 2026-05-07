@@ -50,7 +50,7 @@ function collectAllText(doc: import("@/lib/types").DocumentStructure): string {
         for (const p of b.pairs) parts.push(p.term, p.definition);
         break;
       case "checklist":
-        parts.push(...b.items.map((i) => i.text));
+        parts.push(...b.checkItems.map((i) => i.text));
         break;
       case "comparison":
         parts.push(b.leftLabel, b.rightLabel);
