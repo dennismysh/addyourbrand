@@ -330,7 +330,10 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
           blockSchema(
             "step",
             {
-              index: { type: "integer", minimum: 1 },
+              // Anthropic structured outputs doesn't accept `minimum`/`maximum`
+              // (numerical constraints not supported). The model is told in the
+              // prompt that index starts at 1.
+              index: { type: "integer" },
               title: { type: "string" },
               body: {
                 type: ["string", "null"],
