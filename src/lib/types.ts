@@ -236,7 +236,10 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
       type: "array",
       description: "Content blocks in document order (top to bottom).",
       items: {
-        oneOf: [
+        // Anthropic's structured outputs accepts `anyOf` but not `oneOf`.
+        // Each branch has a const `kind` so the variants are mutually
+        // exclusive in practice — anyOf and oneOf produce the same result.
+        anyOf: [
           blockSchema(
             "heading",
             {
