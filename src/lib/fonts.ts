@@ -53,6 +53,22 @@ export async function fetchGoogleFont(
   weight: number = 400,
   text?: string,
 ): Promise<ArrayBuffer> {
+  // Try the requested weight first, fall back to 400 if unavailable. Pixel
+  // fonts like "Press Start 2P" only ship weight 400 — asking for 700
+  // would otherwise crash the render with no useful error.
+  try {
+    return await fetchGoogleFontInner(family, weight, text);
+  } catch (err) {
+    if (weight === 400) throw err;
+    return fetchGoogleFontInner(family, 400, text);
+  }
+}
+
+async function fetchGoogleFontInner(
+  family: string,
+  weight: number,
+  text?: string,
+): Promise<ArrayBuffer> {
   const key = `google:${family}|${weight}|${text ?? ""}`;
   const cached = FONT_CACHE.get(key);
   if (cached) return cached;
@@ -72,12 +88,16 @@ export async function fetchGoogleFont(
     },
   });
   if (!cssResp.ok) {
-    throw new Error(`Failed to load Google Font CSS for ${family}`);
+    throw new Error(
+      `Failed to load Google Font CSS for ${family} (weight ${weight})`,
+    );
   }
   const css = await cssResp.text();
   const match = css.match(/src:\s*url\((https:\/\/[^)]+\.ttf)\)/);
   if (!match) {
-    throw new Error(`Couldn't find TTF in Google Fonts CSS for ${family}`);
+    throw new Error(
+      `Couldn't find TTF in Google Fonts CSS for ${family} (weight ${weight})`,
+    );
   }
   const fontResp = await fetch(match[1]);
   const buf = await fontResp.arrayBuffer();

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import type { Block, BrandProfile, DocumentStructure } from "@/lib/types";
 
 // In-browser preview of a DocumentStructure rendered in a brand's identity.
@@ -33,6 +34,33 @@ function brandStyle(brand: BrandProfile): BrandStyle {
   };
 }
 
+// Dynamically inject a Google Fonts <link> tag for the brand's typefaces so
+// the preview actually uses them (otherwise the browser falls back to system
+// serif). Server-side PNG export already fetches font bytes via fetchFont
+// and embeds them into the PDF/PNG — this hook just brings the in-browser
+// preview into agreement with the exported result.
+function useBrandFontLink(headingFamily: string, bodyFamily: string) {
+  useEffect(() => {
+    if (!headingFamily && !bodyFamily) return;
+    const familyParam = (name: string) =>
+      `family=${encodeURIComponent(name).replace(/%20/g, "+")}`;
+    const families = [headingFamily, bodyFamily]
+      .filter(Boolean)
+      .map(familyParam)
+      .join("&");
+    const href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+
+    // Reuse a single <link> per BrandRenderer instance.
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    document.head.appendChild(link);
+    return () => {
+      link.remove();
+    };
+  }, [headingFamily, bodyFamily]);
+}
+
 export function BrandRenderer({
   brand,
   doc,
@@ -42,6 +70,7 @@ export function BrandRenderer({
   doc: DocumentStructure;
   width?: number;
 }) {
+  useBrandFontLink(brand.fonts.heading.family, brand.fonts.body.family);
   const height = (width * 3) / 2;
   const s = brandStyle(brand);
   const padding = scale(64);
