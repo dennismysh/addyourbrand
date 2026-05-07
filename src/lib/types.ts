@@ -250,7 +250,6 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
           // Per-kind fields. All nullable. Fill ONLY the ones for the chosen `kind`.
           level: {
             type: ["number", "null"],
-            enum: [1, 2, 3, null],
             description: "heading: 1, 2, or 3. null otherwise.",
           },
           text: {
@@ -285,8 +284,8 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
           },
           tone: {
             type: ["string", "null"],
-            enum: ["info", "warn", "success", "neutral", null],
-            description: "callout: pick one. null for other kinds.",
+            description:
+              "callout: one of info / warn / success / neutral. null for other kinds.",
           },
           value: {
             type: ["string", "null"],
@@ -355,16 +354,8 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
           },
           position: {
             type: ["string", "null"],
-            enum: [
-              "top",
-              "bottom",
-              "topLeft",
-              "topRight",
-              "bottomLeft",
-              "bottomRight",
-              null,
-            ],
-            description: "logoSlot: where the logo sits on the canvas. null for other kinds.",
+            description:
+              "logoSlot: where the logo sits — one of top / bottom / topLeft / topRight / bottomLeft / bottomRight. null for other kinds.",
           },
         },
         required: ["kind", "emphasis"],
