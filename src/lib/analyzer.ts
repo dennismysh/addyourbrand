@@ -1,8 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, MODEL } from "./anthropic";
 import {
-  DocumentStructureSchema,
+  WireDocumentStructureSchema,
   DOCUMENT_STRUCTURE_JSON_SCHEMA,
+  flattenBlock,
   type DocumentStructure,
 } from "./types";
 
@@ -31,25 +32,25 @@ Block kinds available:
 - **footer**: small fine-print at the bottom (handles, dates, sources, copyrights)
 - **logoSlot**: an explicit logo placement on the source. Use \`position\` to indicate where on the canvas.
 
-**Fields per block kind.** Each block object has \`kind\` and \`emphasis\` plus a flat list of optional fields. **Fill only the fields for the chosen kind** — leave the rest \`null\`.
+**Each block has \`kind\`, \`emphasis\`, \`text\`, plus a set of nullable per-kind sub-objects.** Set \`text\` for kinds that need a single string (heading, body, quote, callout, sectionLabel, footer); set it to \`null\` for compound kinds. Then fill the ONE sub-object matching the block's kind, and set every other sub-object to \`null\`.
 
-| kind | fields to fill |
-|---|---|
-| heading | level (1/2/3), text |
-| body | text |
-| list | ordered, items (string array) |
-| table | columnHeaders (string array or null), rows (array of string arrays) |
-| quote | text, attribution (or null) |
-| callout | tone (info/warn/success/neutral), text |
-| stat | value, label |
-| step | index (starts at 1), title, body (or null) |
-| keyvalue | pairs (array of {term, definition}) |
-| checklist | checkItems (array of {text, checked}) |
-| comparison | leftLabel, rightLabel, leftItems, rightItems |
-| sectionLabel | text |
-| divider | (none) |
-| footer | text |
-| logoSlot | position (top/bottom/topLeft/topRight/bottomLeft/bottomRight) |
+| kind | text | sub-object to fill | fields in sub-object |
+|---|---|---|---|
+| heading | the heading text | \`heading\` | level (1/2/3) |
+| body | the paragraph | — (others null) | — |
+| list | null | \`list\` | ordered (bool), items (string array) |
+| table | null | \`table\` | columnHeaders (string array or null), rows (array of string arrays) |
+| quote | the quote | \`quote\` | attribution (or null) |
+| callout | the callout text | \`callout\` | tone (info/warn/success/neutral) |
+| stat | null | \`stat\` | value, label |
+| step | null | \`step\` | index (starts at 1), title, body (or null) |
+| keyvalue | null | \`keyvalue\` | pairs (array of {term, definition}) |
+| checklist | null | \`checklist\` | checkItems (array of {text, checked}) |
+| comparison | null | \`comparison\` | leftLabel, rightLabel, leftItems, rightItems |
+| sectionLabel | the label text | — (others null) | — |
+| divider | null | — (all sub-objects null) | — |
+| footer | the footer text | — (others null) | — |
+| logoSlot | null | \`logoSlot\` | position (top/bottom/topLeft/topRight/bottomLeft/bottomRight) |
 
 Picking the right kind:
 
@@ -148,12 +149,18 @@ export async function analyzeTemplate({
     );
   }
 
-  const result = DocumentStructureSchema.safeParse(parsed);
-  if (!result.success) {
+  const wire = WireDocumentStructureSchema.safeParse(parsed);
+  if (!wire.success) {
     throw new Error(
-      `Model output didn't match schema: ${result.error.message}\n\nRaw: ${textBlock.text.slice(0, 500)}`,
+      `Model output didn't match wire schema: ${wire.error.message}\n\nRaw: ${textBlock.text.slice(0, 500)}`,
     );
   }
 
-  return result.data;
+  // Flatten the wire shape (nested per-kind sub-objects) into the runtime
+  // discriminated-union shape the renderer consumes.
+  return {
+    layout: wire.data.layout,
+    title: wire.data.title,
+    blocks: wire.data.blocks.map(flattenBlock),
+  };
 }
