@@ -151,6 +151,13 @@ export async function extractBrandFromPdf(
       `Failed to parse extraction output: ${(err as Error).message}`,
     );
   }
+  // Log the raw extraction so we can see in function logs what Claude
+  // actually returned vs what made it through our merge. Helps debug
+  // partial-extraction issues without re-running.
+  console.log(
+    "[extract-brand] raw extraction:",
+    JSON.stringify(parsed).slice(0, 2000),
+  );
   return parsed as ExtractedBrandFields;
 }
 
