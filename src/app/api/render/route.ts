@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
+import { PDFDocument } from "pdf-lib";
 import { BrandProfileSchema, DocumentStructureSchema } from "@/lib/types";
 import type { FontDef } from "@/lib/types";
 import { buildDesignJsx, RENDER_DIMS } from "@/lib/render-jsx";
@@ -33,7 +34,26 @@ export const maxDuration = 60;
 const RequestSchema = z.object({
   brand: BrandProfileSchema,
   doc: DocumentStructureSchema,
+  // Output format. PNG is the default — Canva imports both, but PDF preserves
+  // the page as a single document and prints/shares cleanly.
+  format: z.enum(["png", "pdf"]).default("png"),
 });
+
+// Wrap a PNG buffer in a single-page PDF sized to match the canvas.
+async function pngToPdf(pngBytes: Uint8Array): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const png = await pdf.embedPng(pngBytes);
+  // Page dimensions in points (1 point = 1/72 inch). We use the same numeric
+  // values as the pixel canvas so 1 px = 1 pt — keeps Canva sizing intuitive.
+  const page = pdf.addPage([RENDER_DIMS.width, RENDER_DIMS.height]);
+  page.drawImage(png, {
+    x: 0,
+    y: 0,
+    width: RENDER_DIMS.width,
+    height: RENDER_DIMS.height,
+  });
+  return pdf.save();
+}
 
 // Best-effort glyph collection: walk the document tree and join every visible
 // text token. Subsetting the Google Font response to these glyphs only is
@@ -101,7 +121,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { brand, doc } = parsed.data;
+  const { brand, doc, format } = parsed.data;
   const allText = collectAllText(doc);
 
   try {
@@ -126,17 +146,31 @@ export async function POST(req: Request) {
       ],
     });
 
-    const png = new Resvg(svg, {
+    const pngBuffer = new Resvg(svg, {
       fitTo: { mode: "width", value: RENDER_DIMS.width },
     })
       .render()
       .asPng();
+    const pngBytes = new Uint8Array(pngBuffer);
+    const slug = brand.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "design";
 
-    return new Response(new Uint8Array(png), {
+    if (format === "pdf") {
+      const pdfBytes = await pngToPdf(pngBytes);
+      return new Response(pdfBytes, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${slug}-design.pdf"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    return new Response(pngBytes, {
       status: 200,
       headers: {
         "Content-Type": "image/png",
-        "Content-Disposition": `attachment; filename="${brand.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-design.png"`,
+        "Content-Disposition": `attachment; filename="${slug}-design.png"`,
         "Cache-Control": "no-store",
       },
     });

@@ -124,7 +124,7 @@ export function AppClient({
     }
   }
 
-  async function downloadPng() {
+  async function download(format: "png" | "pdf") {
     if (!doc) return;
     setExporting(true);
     setError(null);
@@ -132,7 +132,7 @@ export function AppClient({
       const res = await fetch("/api/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand, doc }),
+        body: JSON.stringify({ brand, doc, format }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -142,7 +142,8 @@ export function AppClient({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${brand.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "design"}-design.png`;
+      const slug = brand.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "design";
+      a.download = `${slug}-design.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -233,23 +234,32 @@ export function AppClient({
             </div>
             {doc ? (
               <>
-                <Button
-                  size="lg"
-                  variant="default"
-                  disabled={exporting}
-                  onClick={downloadPng}
-                  className="w-full max-w-sm"
-                >
-                  {exporting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Rendering 1080×1620…
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4" /> Download PNG (Canva-ready)
-                    </>
-                  )}
-                </Button>
+                <div className="flex w-full max-w-sm flex-col gap-2">
+                  <Button
+                    size="lg"
+                    variant="default"
+                    disabled={exporting}
+                    onClick={() => download("png")}
+                  >
+                    {exporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Rendering 1080×1620…
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" /> Download PNG
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    disabled={exporting}
+                    onClick={() => download("pdf")}
+                  >
+                    <Download className="h-4 w-4" /> Download PDF
+                  </Button>
+                </div>
                 <details className="w-full max-w-sm rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
                   <summary className="cursor-pointer font-medium text-foreground">
                     Document structure
