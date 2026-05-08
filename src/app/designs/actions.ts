@@ -8,6 +8,7 @@ import { getDb, schema } from "@/lib/db";
 import { templatesStore } from "@/lib/blobs";
 import {
   DocumentStructureSchema,
+  type BrandProfile,
   type DocumentStructure,
 } from "@/lib/types";
 
@@ -28,6 +29,9 @@ export interface SavedDesign {
   id: string;
   brandId: string;
   brandName: string;
+  // Full brand profile so the gallery can render a live preview of the
+  // branded result (BrandRenderer needs colors + fonts).
+  brandProfile: BrandProfile;
   title: string;
   templateContentType: string;
   doc: DocumentStructure;
@@ -104,6 +108,7 @@ export async function listMyDesigns(): Promise<SavedDesign[]> {
       id: schema.designs.id,
       brandId: schema.designs.brandId,
       brandName: schema.brands.name,
+      brandProfile: schema.brands.profile,
       title: schema.designs.title,
       templateContentType: schema.designs.templateContentType,
       doc: schema.designs.doc,
@@ -143,6 +148,7 @@ export async function getDesign(id: string): Promise<{
       id: row.design.id,
       brandId: row.design.brandId,
       brandName: row.brand.name,
+      brandProfile: row.brand.profile,
       title: row.design.title,
       templateContentType: row.design.templateContentType,
       doc: row.design.doc as DocumentStructure,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { BrandRenderer } from "@/components/brand-renderer";
 import { listMyDesigns } from "./actions";
 import { ArrowLeft, Wand2 } from "lucide-react";
 
@@ -41,26 +42,28 @@ export default async function DesignsPage() {
           </Button>
         </div>
       ) : (
-        <ul className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {designs.map((d) => (
             <li key={d.id}>
               <Link
                 href={`/app?design=${d.id}`}
                 className="group block overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-accent"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/templates/${d.id}`}
-                  alt={d.title}
-                  className="aspect-[2/3] w-full bg-secondary object-cover"
-                />
-                <div className="p-4">
+                <div className="flex items-center justify-center bg-secondary/40 p-4">
+                  {/*
+                    Render the rebranded result using the same component that
+                    powers /app's preview — the doc + brand profile is all the
+                    renderer needs. Width=280 keeps three cards per row at the
+                    `lg` breakpoint while preserving a usable preview.
+                  */}
+                  <BrandRenderer brand={d.brandProfile} doc={d.doc} width={280} />
+                </div>
+                <div className="border-t border-border p-4">
                   <p className="truncate font-serif text-base font-semibold">
                     {d.title || "Untitled"}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {d.brandName} ·{" "}
-                    {new Date(d.createdAt).toLocaleDateString()}
+                    {d.brandName} · {new Date(d.createdAt).toLocaleDateString()}
                   </p>
                 </div>
               </Link>
