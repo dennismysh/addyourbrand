@@ -102,11 +102,14 @@ export const designs = pgTable("design", {
   brandId: text("brandId")
     .notNull()
     .references(() => brands.id, { onDelete: "cascade" }),
-  // The original template the user uploaded (Blob key).
+  // Verbatim title from the analyzed document — surfaces in the gallery + filename.
+  title: text("title").notNull(),
+  // The uploaded source template image, stored in Netlify Blobs.
   templateBlobKey: text("templateBlobKey").notNull(),
-  // The analysis JSON Claude returned.
-  analysis: jsonb("analysis").notNull(),
-  // The rendered output PNG (Blob key), set once render completes.
-  outputBlobKey: text("outputBlobKey"),
+  templateContentType: text("templateContentType").notNull(),
+  // The DocumentStructure JSON returned by the analyzer. Renderer-ready —
+  // can be re-rendered against any brand without re-running the analyzer.
+  doc: jsonb("doc").notNull(),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).defaultNow().notNull(),
 });

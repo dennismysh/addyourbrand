@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandRenderer } from "@/components/brand-renderer";
+import { saveDesign } from "@/app/designs/actions";
 import type { BrandProfile, DocumentStructure } from "@/lib/types";
 import { Loader2, Upload, ArrowLeft, Wand2, Download } from "lucide-react";
 
@@ -29,21 +30,32 @@ async function fileToBase64(file: File): Promise<string> {
 export function AppClient({
   availableBrands,
   initialBrandId,
+  initialDesignId,
+  initialDoc,
+  initialTemplateUrl,
 }: {
   availableBrands: AvailableBrand[];
   initialBrandId: string;
+  // When the user opens /app?design=ID, the page resolves the saved design
+  // server-side and seeds these so the tool starts in a "restored" state.
+  initialDesignId?: string;
+  initialDoc?: DocumentStructure;
+  initialTemplateUrl?: string;
 }) {
   const initial =
     availableBrands.find((b) => b.id === initialBrandId) ?? availableBrands[0];
   const [selectedBrandId, setSelectedBrandId] = useState(initial.id);
-  // Local-edit copy of the brand. Saved brands stay untouched in the library;
-  // the user can tweak any field here for a single render without persisting.
   const [brand, setBrand] = useState<BrandProfile>(initial.profile);
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    initialTemplateUrl ?? null,
+  );
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageMime, setImageMime] = useState<SupportedMime | null>(null);
-  const [doc, setDoc] = useState<DocumentStructure | null>(null);
+  const [doc, setDoc] = useState<DocumentStructure | null>(initialDoc ?? null);
+  const [savedDesignId, setSavedDesignId] = useState<string | null>(
+    initialDesignId ?? null,
+  );
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +67,8 @@ export function AppClient({
     setBrand(found.profile);
     // Brand change doesn't invalidate the document — same content, new skin.
     // The renderer just re-styles whatever's in `doc` with the new brand.
+    // (We don't auto-save a new design row for brand-only changes — saves
+    // only happen on a fresh analysis.)
   }
 
   async function handleFile(file: File) {
@@ -63,7 +77,9 @@ export function AppClient({
       return;
     }
     setError(null);
+    // Picking a new template starts a fresh design — clear any restore state.
     setDoc(null);
+    setSavedDesignId(null);
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
     const b64 = await fileToBase64(file);
@@ -110,7 +126,24 @@ export function AppClient({
         }
         const status = await statusRes.json();
         if (status.status === "done") {
-          setDoc(status.result);
+          const resultDoc: DocumentStructure = status.result;
+          setDoc(resultDoc);
+          // Auto-save the design so it shows up in /designs and can be
+          // re-opened. Failure here is non-fatal — the user already has the
+          // doc; saving is a convenience.
+          if (imageBase64 && imageMime) {
+            try {
+              const { id } = await saveDesign({
+                brandId: selectedBrandId,
+                templateImageBase64: imageBase64,
+                templateMime: imageMime,
+                doc: resultDoc,
+              });
+              setSavedDesignId(id);
+            } catch (err) {
+              console.warn("Failed to auto-save design:", err);
+            }
+          }
           return;
         }
         if (status.status === "error") {
@@ -158,11 +191,16 @@ export function AppClient({
   return (
     <main className="min-h-screen">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/brands">
-            <ArrowLeft className="h-4 w-4" /> Brands
-          </Link>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/brands">
+              <ArrowLeft className="h-4 w-4" /> Brands
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/designs">My designs</Link>
+          </Button>
+        </div>
         <span className="font-serif text-lg font-semibold">addyourbrand</span>
         <BrandPicker
           brands={availableBrands}
@@ -260,6 +298,17 @@ export function AppClient({
                     <Download className="h-4 w-4" /> Download PDF
                   </Button>
                 </div>
+                {savedDesignId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Saved to your library ·{" "}
+                    <Link
+                      href="/designs"
+                      className="text-accent hover:underline"
+                    >
+                      view all designs →
+                    </Link>
+                  </p>
+                ) : null}
                 <details className="w-full max-w-sm rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
                   <summary className="cursor-pointer font-medium text-foreground">
                     Document structure

@@ -10,11 +10,16 @@ export default async function BrandsPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <header className="mb-10 flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/">
-            <ArrowLeft className="h-4 w-4" /> Home
-          </Link>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/">
+              <ArrowLeft className="h-4 w-4" /> Home
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/designs">My designs</Link>
+          </Button>
+        </div>
         <span className="font-serif text-lg font-semibold">addyourbrand</span>
         <div className="flex items-center gap-2">
           <SignOutButton />
