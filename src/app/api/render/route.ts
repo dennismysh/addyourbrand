@@ -156,7 +156,10 @@ export async function POST(req: Request) {
 
     if (format === "pdf") {
       const pdfBytes = await pngToPdf(pngBytes);
-      return new Response(pdfBytes, {
+      // pdf-lib returns Uint8Array typed against ArrayBufferLike; Response
+      // wants the narrower ArrayBuffer-backed kind. Re-wrap to satisfy TS.
+      const body = new Uint8Array(pdfBytes);
+      return new Response(body, {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
