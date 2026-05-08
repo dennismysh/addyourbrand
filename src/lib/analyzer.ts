@@ -52,6 +52,12 @@ Block kinds available:
 | footer | the footer text | — (others null) | — |
 | logoSlot | null | \`logoSlot\` | position (top/bottom/topLeft/topRight/bottomLeft/bottomRight) |
 
+**Layout choice (\`layout\` field):**
+- \`centered\` — pick this when one element visually dominates the page (a giant stat, a single hero quote, a big CTA card). Even if the design has a small section label, a body paragraph or two, and a footer, if the visual hierarchy is clearly "one hero element + supporting cast," it's \`centered\`. The renderer will vertically center the content stack.
+- \`flow\` — pick this when the design is a top-to-bottom narrative with multiple peers (tutorials, multi-tip lists, glossaries, two-table cheat sheets). No single block dominates; the reader works through the content sequentially.
+
+**Emphasis matters for stats.** A stat block with \`emphasis: 1\` renders the value at 320px (genuinely hero-scale, eats most of the canvas). \`emphasis: 2\` is 140px (prominent but inline). \`emphasis: 3\` is 80px (sidebar-sized). Pick \`1\` whenever the stat's value is the most visually dominant element on the page. Don't be shy — most "hero stat" templates want \`emphasis: 1\`.
+
 Picking the right kind:
 
 - A 2-column grid with cell borders → table (do NOT flatten into list items)

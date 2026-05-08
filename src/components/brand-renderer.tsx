@@ -368,6 +368,9 @@ function Stat({
   block: Extract<Block, { kind: "stat" }>;
   s: BrandStyle;
 }) {
+  // Same emphasis-aware sizing as the Satori renderer — keeps preview honest.
+  const valueSize = block.emphasis === 1 ? 320 : block.emphasis === 2 ? 140 : 80;
+  const labelSize = block.emphasis === 1 ? 44 : block.emphasis === 2 ? 28 : 22;
   return (
     <div
       style={{
@@ -380,7 +383,7 @@ function Stat({
       <div
         style={{
           fontFamily: s.headingFont,
-          fontSize: scale(140),
+          fontSize: scale(valueSize),
           fontWeight: 800,
           color: s.accent,
           lineHeight: 1,
@@ -392,9 +395,10 @@ function Stat({
       <div
         style={{
           fontFamily: s.bodyFont,
-          fontSize: scale(28),
+          fontSize: scale(labelSize),
           color: s.fgColor,
-          marginTop: scale(8),
+          marginTop: scale(12),
+          textAlign: "center",
         }}
       >
         {block.label}

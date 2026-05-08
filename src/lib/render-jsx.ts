@@ -268,6 +268,10 @@ function renderCallout(
 }
 
 function renderStat(block: Extract<Block, { kind: "stat" }>, s: BrandStyle): unknown {
+  // Hero stats (emphasis=1) get the dramatic display treatment they deserve.
+  // 320px lets a "85%" or "$10K" eat the page the way the source intended.
+  const valueSize = block.emphasis === 1 ? 320 : block.emphasis === 2 ? 140 : 80;
+  const labelSize = block.emphasis === 1 ? 44 : block.emphasis === 2 ? 28 : 22;
   return {
     type: "div",
     props: {
@@ -284,7 +288,7 @@ function renderStat(block: Extract<Block, { kind: "stat" }>, s: BrandStyle): unk
             style: {
               display: "flex",
               fontFamily: s.headingFont,
-              fontSize: 140,
+              fontSize: valueSize,
               fontWeight: 800,
               color: s.accent,
               lineHeight: 1,
@@ -299,9 +303,10 @@ function renderStat(block: Extract<Block, { kind: "stat" }>, s: BrandStyle): unk
             style: {
               display: "flex",
               fontFamily: s.bodyFont,
-              fontSize: 28,
+              fontSize: labelSize,
               color: s.fgColor,
-              marginTop: 8,
+              marginTop: 12,
+              textAlign: "center" as const,
             },
             children: block.label,
           },
