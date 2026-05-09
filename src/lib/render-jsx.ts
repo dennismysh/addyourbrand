@@ -680,10 +680,11 @@ export function buildDesignJsx(
   doc: DocumentStructure,
 ) {
   const s = brandStyle(brand);
-  const align =
-    doc.layout === "centered"
-      ? { alignItems: "center", justifyContent: "center", textAlign: "center" as const }
-      : {};
+  // Vertically center the content stack always — leaves balanced space top
+  // and bottom on under-filled canvases (hero stats, quote cards) without
+  // hurting tall flow docs (which fill the canvas anyway). For "centered"
+  // layouts we also center-align horizontally + center text.
+  const isCentered = doc.layout === "centered";
   return {
     type: "div",
     props: {
@@ -696,7 +697,9 @@ export function buildDesignJsx(
         flexDirection: "column",
         padding: PAGE_PADDING,
         fontFamily: s.bodyFont,
-        ...align,
+        justifyContent: "center",
+        alignItems: isCentered ? "center" : "stretch",
+        textAlign: isCentered ? ("center" as const) : ("left" as const),
       },
       children: doc.blocks.map((block, i) => ({
         ...(renderBlock(block, s) as Record<string, unknown>),

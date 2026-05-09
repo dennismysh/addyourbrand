@@ -86,8 +86,10 @@ export function BrandRenderer({
         padding,
         display: "flex",
         flexDirection: "column",
+        // Always vertically center — under-filled canvases (hero stats) get
+        // balanced top/bottom whitespace; tall docs already fill the height.
+        justifyContent: "center",
         alignItems: isCentered ? "center" : "stretch",
-        justifyContent: isCentered ? "center" : "flex-start",
         textAlign: isCentered ? "center" : "left",
         fontFamily: s.bodyFont,
         borderRadius: 12,
