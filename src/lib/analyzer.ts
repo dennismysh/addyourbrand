@@ -22,7 +22,7 @@ Block kinds available:
 - **table**: rows × columns, with optional header row. Use this whenever the source shows a tabular grid with cell borders or aligned columns.
 - **quote**: pulled or stylized quotation
 - **callout**: highlighted box with key info — pick \`tone\` from info/warn/success/neutral
-- **stat**: a big number/phrase with a small caption ("5x faster", "$10K saved")
+- **stat**: ANY "single hero word or phrase + small caption" pattern. Not limited to numbers. "FACT + body explainer", "TIP #3 + content", "WARNING + details", "$10K + caption", "85% + caption" — all stats. If the page has one giant word/number and a small caption underneath, it's a stat.
 - **step**: numbered process step with an index, title, optional body
 - **keyvalue**: term-definition pairs (glossaries, spec sheets, do/don't lists)
 - **checklist**: items with checked-state
@@ -60,6 +60,7 @@ Block kinds available:
 
 Picking the right kind:
 
+- One enormous word or number + body text below it → stat with emphasis=1, value=the hero word, label=the body text. Don't fall back to heading + body — stat captures the design intent.
 - A 2-column grid with cell borders → table (do NOT flatten into list items)
 - A numbered set of steps with arrows or progressive structure → multiple step blocks
 - "Don't / Do" or "Before / After" two-column boxes → comparison
