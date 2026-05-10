@@ -47,9 +47,9 @@ export function buildMotifPrompt(input: MotifPromptInput): string {
     corner_flourish:
       "Subject: an asymmetric ornamental flourish positioned in the top-left corner — short curved or geometric strokes radiating from the corner. Empty in the rest of the frame. Suitable for layering over a corner of a design.",
     divider_pattern:
-      "Subject: a horizontal divider band — a row of small repeated geometric shapes (dots, dashes, ticks, stars) in the accent color, centered, taking up the middle 60% of the frame width and only ~10% of the frame height. Empty above and below.",
+      "Subject: a horizontal divider band — a single row of small repeated abstract geometric shapes (dots OR small dashes OR small ticks OR tiny stars — pick ONE), in the accent color, centered, taking up the middle 60% of the frame width and only the middle 10% of the frame height. Empty above and below the band. Strictly NO figurative imagery — no cars, no objects, no glyphs of any subject. Only abstract geometric punctuation.",
     background_pattern:
-      "Subject: a subtle repeating geometric pattern across the entire frame — small motifs (dots, plus signs, tiny shapes) in the accent color at low contrast (~20% opacity equivalent) over the brand background. Suitable as a tiled background texture.",
+      "Subject: a TILED REPEATING pattern that fills the ENTIRE frame edge-to-edge with the same small motif repeated many times in a regular grid (think wallpaper or wrapping paper). The motif itself is tiny (1-3% of frame width each), the same shape repeated in a grid of 8x8 or denser. Low contrast: motifs in accent color at low visual weight against the brand background. NOT a single hero subject. NOT a centered illustration. Picture: subtle textured paper, not a poster.",
   };
 
   return [
