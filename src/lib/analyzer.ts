@@ -55,22 +55,22 @@ Block kinds available:
 
 **Decorative motif (\`motif\` field, single string):**
 
-Source designs often have one signature decorative element that defines their visual character — giant quote marks on a quote card, a logo mark in a corner, a frame border, a subtle background texture. Our renderer can recreate these in the brand's identity. If the source has one, pick the matching combo string. If the design is content-first (lists, tables, tutorials, glossaries), leave \`motif\` as \`null\` — adding ornamentation would compete with the content.
+Source designs often have one signature decorative element that defines their visual character — giant quote marks on a quote card, a logo mark in a corner, a frame border, a subtle background texture. Our renderer can recreate these in the brand's identity. If the source has one, pick the matching combo string. If the design is content-first (lists, tables, tutorials, glossaries) with no signature decoration, return \`"none"\`.
 
 Allowed values:
+- \`"none"\` — no signature decoration (content-first design)
 - \`"quote_marks_giant|behind"\` — quote cards, FACT cards, designs with prominent quotation-mark decoration
 - \`"ornamental_frame|frame"\` — bordered editorial cards
 - \`"corner_flourish|topLeft"\` / \`"corner_flourish|topRight"\` / \`"corner_flourish|bottomLeft"\` / \`"corner_flourish|bottomRight"\` — designs with a small mark in the named corner (common on hero stats)
 - \`"divider_pattern|behind"\` — designs with a horizontal accent strip
 - \`"background_pattern|behind"\` — designs with a subtle full-page texture
-- \`null\` — no signature decoration
 
 Examples:
 - A quote card with giant quote marks in opposite corners → \`"quote_marks_giant|behind"\`
 - A hero stat with a small logo in bottom-right → \`"corner_flourish|bottomRight"\`
 - A bordered editorial layout → \`"ornamental_frame|frame"\`
-- A simple list of 5 tips with no decoration → \`null\`
-- A multi-table cheat sheet → \`null\`
+- A simple list of 5 tips with no decoration → \`"none"\`
+- A multi-table cheat sheet → \`"none"\`
 
 **Layout choice (\`layout\` field):**
 - \`centered\` — pick this when one element visually dominates the page (a giant stat, a single hero quote, a big CTA card). Even if the design has a small section label, a body paragraph or two, and a footer, if the visual hierarchy is clearly "one hero element + supporting cast," it's \`centered\`. The renderer will vertically center the content stack.
