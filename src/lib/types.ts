@@ -144,19 +144,6 @@ export const FooterBlockSchema = z.object({
   ...BlockBase,
 });
 
-export const LogoSlotBlockSchema = z.object({
-  kind: z.literal("logoSlot"),
-  position: z.enum([
-    "top",
-    "bottom",
-    "topLeft",
-    "topRight",
-    "bottomLeft",
-    "bottomRight",
-  ]),
-  ...BlockBase,
-});
-
 export const BlockSchema = z.discriminatedUnion("kind", [
   HeadingBlockSchema,
   BodyBlockSchema,
@@ -172,7 +159,6 @@ export const BlockSchema = z.discriminatedUnion("kind", [
   SectionLabelBlockSchema,
   DividerBlockSchema,
   FooterBlockSchema,
-  LogoSlotBlockSchema,
 ]);
 
 export type Block = z.infer<typeof BlockSchema>;
@@ -199,7 +185,6 @@ export const WireBlockSchema = z.object({
     "sectionLabel",
     "divider",
     "footer",
-    "logoSlot",
   ]),
   emphasis: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   // Shared single-string field used by simple kinds (heading, body, callout,
@@ -244,18 +229,6 @@ export const WireBlockSchema = z.object({
       rightLabel: z.string(),
       leftItems: z.array(z.string()),
       rightItems: z.array(z.string()),
-    })
-    .nullable(),
-  logoSlot: z
-    .object({
-      position: z.enum([
-        "top",
-        "bottom",
-        "topLeft",
-        "topRight",
-        "bottomLeft",
-        "bottomRight",
-      ]),
     })
     .nullable(),
 });
@@ -350,9 +323,6 @@ export function flattenBlock(w: WireBlock): Block {
     case "footer":
       if (w.text == null) throw new Error("footer block missing text");
       return { kind: "footer", emphasis: e, text: w.text };
-    case "logoSlot":
-      if (!w.logoSlot) throw new Error("logoSlot block missing data");
-      return { kind: "logoSlot", emphasis: e, position: w.logoSlot.position };
   }
 }
 
@@ -482,7 +452,6 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
               "sectionLabel",
               "divider",
               "footer",
-              "logoSlot",
             ],
           },
           emphasis: {
@@ -588,22 +557,6 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
             },
             ["leftLabel", "rightLabel", "leftItems", "rightItems"],
           ),
-          logoSlot: subObject(
-            {
-              position: {
-                type: "string",
-                enum: [
-                  "top",
-                  "bottom",
-                  "topLeft",
-                  "topRight",
-                  "bottomLeft",
-                  "bottomRight",
-                ],
-              },
-            },
-            ["position"],
-          ),
         },
         required: [
           "kind",
@@ -619,7 +572,6 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
           "keyvalue",
           "checklist",
           "comparison",
-          "logoSlot",
         ],
         additionalProperties: false,
       },

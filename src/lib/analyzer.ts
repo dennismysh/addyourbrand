@@ -31,7 +31,6 @@ Block kinds available:
 - **sectionLabel**: small all-caps label introducing a new section ("Pros", "Step 1", "Inside this guide")
 - **divider**: horizontal rule between sections
 - **footer**: small fine-print at the bottom (handles, dates, sources, copyrights)
-- **logoSlot**: an explicit logo placement on the source. Use \`position\` to indicate where on the canvas.
 
 **Each block has \`kind\`, \`emphasis\`, \`text\`, plus a set of nullable per-kind sub-objects.** Set \`text\` for kinds that need a single string (heading, body, quote, callout, sectionLabel, footer); set it to \`null\` for compound kinds. Then fill the ONE sub-object matching the block's kind, and set every other sub-object to \`null\`.
 
@@ -51,7 +50,6 @@ Block kinds available:
 | sectionLabel | the label text | — (others null) | — |
 | divider | null | — (all sub-objects null) | — |
 | footer | the footer text | — (others null) | — |
-| logoSlot | null | \`logoSlot\` | position (top/bottom/topLeft/topRight/bottomLeft/bottomRight) |
 
 **Decorative motif (\`motif\` field, single string):**
 

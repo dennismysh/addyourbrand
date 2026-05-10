@@ -616,30 +616,6 @@ function renderFooter(
   };
 }
 
-function renderLogoSlot(
-  _block: Extract<Block, { kind: "logoSlot" }>,
-  s: BrandStyle,
-): unknown {
-  // Minimal placeholder for now — until uploaded logos are wired through, just
-  // render the brand name as a stylized wordmark in the heading font.
-  return {
-    type: "div",
-    props: {
-      style: {
-        display: "flex",
-        fontFamily: s.headingFont,
-        fontSize: 22,
-        fontWeight: 700,
-        color: s.accent,
-        textTransform: "uppercase",
-        letterSpacing: "0.18em",
-        marginBottom: 18,
-      },
-      children: "",
-    },
-  };
-}
-
 function renderBlock(block: Block, s: BrandStyle): unknown {
   switch (block.kind) {
     case "heading":
@@ -670,8 +646,6 @@ function renderBlock(block: Block, s: BrandStyle): unknown {
       return renderDivider(s);
     case "footer":
       return renderFooter(block, s);
-    case "logoSlot":
-      return renderLogoSlot(block, s);
   }
 }
 

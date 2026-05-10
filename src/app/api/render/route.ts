@@ -99,7 +99,6 @@ function collectAllText(doc: import("@/lib/types").DocumentStructure): string {
         parts.push(...b.leftItems, ...b.rightItems);
         break;
       case "divider":
-      case "logoSlot":
         break;
     }
   }

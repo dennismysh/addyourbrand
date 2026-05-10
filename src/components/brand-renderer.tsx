@@ -228,8 +228,6 @@ function RenderBlock({ block, s }: { block: Block; s: BrandStyle }) {
       return <Divider s={s} />;
     case "footer":
       return <Footer block={block} s={s} />;
-    case "logoSlot":
-      return null; // logos not yet wired
   }
 }
 
