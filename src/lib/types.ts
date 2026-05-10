@@ -356,12 +356,15 @@ export function flattenBlock(w: WireBlock): Block {
   }
 }
 
-// Motif kind+placement combinations that produce a visually sensible result.
-// Encoded as "<kind>|<placement>" strings so the wire schema only adds ONE
-// nullable enum string to the document — Anthropic's grammar compiler
-// chokes on additional nested sub-objects + per-property enums (we hit the
-// "compiled grammar too large" limit when motif was a nested object).
+// Motif kind+placement combinations that produce a visually sensible result,
+// plus the literal "none" sentinel for "no motif." Encoded as a single enum
+// string on the wire so the grammar compiler only adds ONE enum to the
+// document schema — nested sub-objects + per-property enums hit the
+// "compiled grammar too large" limit, and Anthropic also rejects enum on
+// nullable unions, so "none" stands in for null at the schema layer and is
+// converted to null by parseMotifCombo on our side.
 export const MOTIF_COMBOS = [
+  "none",
   "quote_marks_giant|behind",
   "ornamental_frame|frame",
   "corner_flourish|topLeft",
@@ -399,7 +402,7 @@ export const DesignMotifSchema = z.object({
 export type DesignMotif = z.infer<typeof DesignMotifSchema>;
 
 export function parseMotifCombo(combo: string | null | undefined): DesignMotif | null {
-  if (!combo) return null;
+  if (!combo || combo === "none") return null;
   const [kind, placement] = combo.split("|");
   const result = DesignMotifSchema.safeParse({ kind, placement });
   return result.success ? result.data : null;
@@ -408,7 +411,7 @@ export function parseMotifCombo(combo: string | null | undefined): DesignMotif |
 export const WireDocumentStructureSchema = z.object({
   layout: z.enum(["flow", "centered"]),
   title: z.string(),
-  motif: z.string().nullable(),
+  motif: z.string(),
   blocks: z.array(WireBlockSchema),
 });
 
@@ -451,10 +454,10 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
         "Verbatim title of the source template. The first heading or the most prominent text.",
     },
     motif: {
-      type: ["string", "null"],
-      enum: [...MOTIF_COMBOS, null],
+      type: "string",
+      enum: [...MOTIF_COMBOS],
       description:
-        "Optional decorative motif for the design, encoded as '<kind>|<placement>'. Fill ONLY when the source has a strong decorative element that defines its character. Set to null for content-first designs (lists, tables, tutorials) where ornamentation would compete with the content. Pick from: 'quote_marks_giant|behind' (quote/FACT cards with giant quote marks), 'ornamental_frame|frame' (designs with a clear border), 'corner_flourish|topLeft' / 'corner_flourish|topRight' / 'corner_flourish|bottomLeft' / 'corner_flourish|bottomRight' (designs with a small mark in that corner), 'divider_pattern|behind' (designs with a horizontal accent), 'background_pattern|behind' (designs with subtle full-page texture).",
+        "Decorative motif for the design, encoded as '<kind>|<placement>'. Use 'none' when the source has no signature decoration (lists, tables, tutorials, glossaries — content-first layouts). Pick a non-'none' value ONLY when the source has a strong decorative element that defines its character. Options: 'quote_marks_giant|behind' (quote/FACT cards with giant quotation marks), 'ornamental_frame|frame' (designs with a clear border), 'corner_flourish|topLeft' / 'corner_flourish|topRight' / 'corner_flourish|bottomLeft' / 'corner_flourish|bottomRight' (designs with a small mark in that corner), 'divider_pattern|behind' (designs with a horizontal accent), 'background_pattern|behind' (designs with subtle full-page texture).",
     },
     blocks: {
       type: "array",
