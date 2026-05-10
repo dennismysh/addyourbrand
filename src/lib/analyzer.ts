@@ -4,6 +4,7 @@ import {
   WireDocumentStructureSchema,
   DOCUMENT_STRUCTURE_JSON_SCHEMA,
   flattenBlock,
+  parseMotifCombo,
   type DocumentStructure,
 } from "./types";
 
@@ -52,18 +53,22 @@ Block kinds available:
 | footer | the footer text | — (others null) | — |
 | logoSlot | null | \`logoSlot\` | position (top/bottom/topLeft/topRight/bottomLeft/bottomRight) |
 
-**Decorative motif (\`motif\` field):**
+**Decorative motif (\`motif\` field, single string):**
 
-Source designs often have one signature decorative element that defines their visual character — giant quote marks on a quote card, a logo mark in a corner, a frame border around the content, a subtle background texture. Our renderer can recreate these in the brand's visual identity. If the source has one, fill the \`motif\` field. If the design is content-first (lists, tables, tutorials, glossaries) with no signature decoration, leave \`motif\` as \`null\` — adding ornamentation to those would compete with the content.
+Source designs often have one signature decorative element that defines their visual character — giant quote marks on a quote card, a logo mark in a corner, a frame border, a subtle background texture. Our renderer can recreate these in the brand's identity. If the source has one, pick the matching combo string. If the design is content-first (lists, tables, tutorials, glossaries), leave \`motif\` as \`null\` — adding ornamentation would compete with the content.
 
-Pick \`kind\` from: quote_marks_giant (quote cards, FACT cards), ornamental_frame (bordered editorial cards), corner_flourish (a small mark in a corner — common on hero stats), divider_pattern (a horizontal accent strip between sections), background_pattern (subtle full-page texture).
-
-Pick \`placement\` from: behind (full canvas behind content — best for quote_marks_giant + background_pattern), frame (full canvas border — only with ornamental_frame), topLeft/topRight/bottomLeft/bottomRight (corner accent — best for corner_flourish).
+Allowed values:
+- \`"quote_marks_giant|behind"\` — quote cards, FACT cards, designs with prominent quotation-mark decoration
+- \`"ornamental_frame|frame"\` — bordered editorial cards
+- \`"corner_flourish|topLeft"\` / \`"corner_flourish|topRight"\` / \`"corner_flourish|bottomLeft"\` / \`"corner_flourish|bottomRight"\` — designs with a small mark in the named corner (common on hero stats)
+- \`"divider_pattern|behind"\` — designs with a horizontal accent strip
+- \`"background_pattern|behind"\` — designs with a subtle full-page texture
+- \`null\` — no signature decoration
 
 Examples:
-- A quote card with giant quote marks in opposite corners → \`{ kind: "quote_marks_giant", placement: "behind" }\`
-- A hero stat with a small logo in bottom-right → \`{ kind: "corner_flourish", placement: "bottomRight" }\`
-- A bordered editorial layout → \`{ kind: "ornamental_frame", placement: "frame" }\`
+- A quote card with giant quote marks in opposite corners → \`"quote_marks_giant|behind"\`
+- A hero stat with a small logo in bottom-right → \`"corner_flourish|bottomRight"\`
+- A bordered editorial layout → \`"ornamental_frame|frame"\`
 - A simple list of 5 tips with no decoration → \`null\`
 - A multi-table cheat sheet → \`null\`
 
@@ -183,7 +188,7 @@ export async function analyzeTemplate({
   return {
     layout: wire.data.layout,
     title: wire.data.title,
-    motif: wire.data.motif,
+    motif: parseMotifCombo(wire.data.motif),
     blocks: wire.data.blocks.map(flattenBlock),
   };
 }

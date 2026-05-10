@@ -356,10 +356,24 @@ export function flattenBlock(w: WireBlock): Block {
   }
 }
 
-// One optional decorative motif per design. The analyzer flags this when
-// the source has a strong decorative theme (giant quote marks on a quote
-// card, a corner mark on a stat card, a background pattern on a hero).
-// The renderer composites it behind/around the content.
+// Motif kind+placement combinations that produce a visually sensible result.
+// Encoded as "<kind>|<placement>" strings so the wire schema only adds ONE
+// nullable enum string to the document — Anthropic's grammar compiler
+// chokes on additional nested sub-objects + per-property enums (we hit the
+// "compiled grammar too large" limit when motif was a nested object).
+export const MOTIF_COMBOS = [
+  "quote_marks_giant|behind",
+  "ornamental_frame|frame",
+  "corner_flourish|topLeft",
+  "corner_flourish|topRight",
+  "corner_flourish|bottomLeft",
+  "corner_flourish|bottomRight",
+  "divider_pattern|behind",
+  "background_pattern|behind",
+] as const;
+
+export type MotifCombo = (typeof MOTIF_COMBOS)[number];
+
 export const MotifPlacementEnum = z.enum([
   "behind",
   "frame",
@@ -384,10 +398,17 @@ export const DesignMotifSchema = z.object({
 });
 export type DesignMotif = z.infer<typeof DesignMotifSchema>;
 
+export function parseMotifCombo(combo: string | null | undefined): DesignMotif | null {
+  if (!combo) return null;
+  const [kind, placement] = combo.split("|");
+  const result = DesignMotifSchema.safeParse({ kind, placement });
+  return result.success ? result.data : null;
+}
+
 export const WireDocumentStructureSchema = z.object({
   layout: z.enum(["flow", "centered"]),
   title: z.string(),
-  motif: DesignMotifSchema.nullable(),
+  motif: z.string().nullable(),
   blocks: z.array(WireBlockSchema),
 });
 
@@ -430,38 +451,10 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
         "Verbatim title of the source template. The first heading or the most prominent text.",
     },
     motif: {
-      type: ["object", "null"],
-      properties: {
-        kind: {
-          type: "string",
-          enum: [
-            "quote_marks_giant",
-            "ornamental_frame",
-            "corner_flourish",
-            "divider_pattern",
-            "background_pattern",
-          ],
-          description:
-            "Pick the decorative motif kind that best matches the source's visual character. quote_marks_giant for quote cards. ornamental_frame for designs with a clear border. corner_flourish for designs with a small mark in a corner. background_pattern for designs with subtle texture. divider_pattern for designs with a horizontal accent strip.",
-        },
-        placement: {
-          type: "string",
-          enum: [
-            "behind",
-            "frame",
-            "topLeft",
-            "topRight",
-            "bottomLeft",
-            "bottomRight",
-          ],
-          description:
-            "Where the motif sits. 'behind' = full-canvas backdrop behind text. 'frame' = full-canvas border around content. corner placements = small accent in that corner.",
-        },
-      },
-      required: ["kind", "placement"],
-      additionalProperties: false,
+      type: ["string", "null"],
+      enum: [...MOTIF_COMBOS, null],
       description:
-        "Optional. Fill ONLY when the source has a strong decorative element that defines its character (giant quote marks on a quote card, a logo mark in a corner, a frame border, a subtle background pattern). Set to null for content-first designs (lists, tables, tutorials) where ornamentation would compete with the content.",
+        "Optional decorative motif for the design, encoded as '<kind>|<placement>'. Fill ONLY when the source has a strong decorative element that defines its character. Set to null for content-first designs (lists, tables, tutorials) where ornamentation would compete with the content. Pick from: 'quote_marks_giant|behind' (quote/FACT cards with giant quote marks), 'ornamental_frame|frame' (designs with a clear border), 'corner_flourish|topLeft' / 'corner_flourish|topRight' / 'corner_flourish|bottomLeft' / 'corner_flourish|bottomRight' (designs with a small mark in that corner), 'divider_pattern|behind' (designs with a horizontal accent), 'background_pattern|behind' (designs with subtle full-page texture).",
     },
     blocks: {
       type: "array",
