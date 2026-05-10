@@ -675,29 +675,59 @@ function renderBlock(block: Block, s: BrandStyle): unknown {
   }
 }
 
+// Compute the absolute-positioning style for a motif image given the
+// document's chosen placement. Returns a style object the caller spreads onto
+// the motif's position-absolute wrapper.
+function motifPositionStyle(
+  placement: import("./types").MotifPlacement,
+): Record<string, string | number> {
+  const cornerSize = 380; // px — large enough to read at 1080×1620
+  const base = {
+    position: "absolute" as const,
+    display: "flex",
+    pointerEvents: "none" as const,
+  };
+  switch (placement) {
+    case "behind":
+      // Full canvas backdrop. Stretch to canvas dims behind everything.
+      return { ...base, left: 0, top: 0, width: CANVAS_W, height: CANVAS_H, opacity: 0.18 };
+    case "frame":
+      // Full canvas border element — same dims, rendered as overlay (frame
+      // motif itself has transparent center).
+      return { ...base, left: 0, top: 0, width: CANVAS_W, height: CANVAS_H };
+    case "topLeft":
+      return { ...base, left: 0, top: 0, width: cornerSize, height: cornerSize };
+    case "topRight":
+      return { ...base, right: 0, top: 0, width: cornerSize, height: cornerSize };
+    case "bottomLeft":
+      return { ...base, left: 0, bottom: 0, width: cornerSize, height: cornerSize };
+    case "bottomRight":
+      return { ...base, right: 0, bottom: 0, width: cornerSize, height: cornerSize };
+  }
+}
+
 export function buildDesignJsx(
   brand: BrandProfile,
   doc: DocumentStructure,
+  // Optional pre-fetched motif PNG bytes. The render route fetches these
+  // server-side and passes them in so Satori can embed via data URL.
+  motifBytes?: Uint8Array,
 ) {
   const s = brandStyle(brand);
-  // Vertically center the content stack always — leaves balanced space top
-  // and bottom on under-filled canvases (hero stats, quote cards) without
-  // hurting tall flow docs (which fill the canvas anyway). For "centered"
-  // layouts we also center-align horizontally + center text.
   const isCentered = doc.layout === "centered";
-  return {
+
+  // Build the inner content stack (everything except the motif).
+  const contentStack = {
     type: "div",
     props: {
       style: {
-        width: CANVAS_W,
-        height: CANVAS_H,
-        background: s.bgColor,
-        color: s.fgColor,
+        position: "relative" as const,
         display: "flex",
-        flexDirection: "column",
+        flexDirection: "column" as const,
+        flex: 1,
+        width: "100%",
         padding: PAGE_PADDING,
-        fontFamily: s.bodyFont,
-        justifyContent: "center",
+        justifyContent: "center" as const,
         alignItems: isCentered ? "center" : "stretch",
         textAlign: isCentered ? ("center" as const) : ("left" as const),
       },
@@ -705,6 +735,48 @@ export function buildDesignJsx(
         ...(renderBlock(block, s) as Record<string, unknown>),
         key: i,
       })),
+    },
+  };
+
+  // If we have a motif + bytes, layer it absolutely beneath/around the content.
+  const children: unknown[] = [];
+  if (doc.motif && motifBytes) {
+    const dataUrl = `data:image/png;base64,${Buffer.from(motifBytes).toString("base64")}`;
+    children.push({
+      type: "div",
+      props: {
+        style: motifPositionStyle(doc.motif.placement),
+        children: {
+          type: "img",
+          props: {
+            src: dataUrl,
+            width: "100%" as const,
+            height: "100%" as const,
+            style: {
+              objectFit: "contain" as const,
+            },
+          },
+        },
+      },
+    });
+  }
+  children.push(contentStack);
+
+  return {
+    type: "div",
+    props: {
+      style: {
+        position: "relative" as const,
+        width: CANVAS_W,
+        height: CANVAS_H,
+        background: s.bgColor,
+        color: s.fgColor,
+        display: "flex",
+        flexDirection: "column" as const,
+        fontFamily: s.bodyFont,
+        overflow: "hidden" as const,
+      },
+      children,
     },
   };
 }

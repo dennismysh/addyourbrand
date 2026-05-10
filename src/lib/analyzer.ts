@@ -52,6 +52,21 @@ Block kinds available:
 | footer | the footer text | — (others null) | — |
 | logoSlot | null | \`logoSlot\` | position (top/bottom/topLeft/topRight/bottomLeft/bottomRight) |
 
+**Decorative motif (\`motif\` field):**
+
+Source designs often have one signature decorative element that defines their visual character — giant quote marks on a quote card, a logo mark in a corner, a frame border around the content, a subtle background texture. Our renderer can recreate these in the brand's visual identity. If the source has one, fill the \`motif\` field. If the design is content-first (lists, tables, tutorials, glossaries) with no signature decoration, leave \`motif\` as \`null\` — adding ornamentation to those would compete with the content.
+
+Pick \`kind\` from: quote_marks_giant (quote cards, FACT cards), ornamental_frame (bordered editorial cards), corner_flourish (a small mark in a corner — common on hero stats), divider_pattern (a horizontal accent strip between sections), background_pattern (subtle full-page texture).
+
+Pick \`placement\` from: behind (full canvas behind content — best for quote_marks_giant + background_pattern), frame (full canvas border — only with ornamental_frame), topLeft/topRight/bottomLeft/bottomRight (corner accent — best for corner_flourish).
+
+Examples:
+- A quote card with giant quote marks in opposite corners → \`{ kind: "quote_marks_giant", placement: "behind" }\`
+- A hero stat with a small logo in bottom-right → \`{ kind: "corner_flourish", placement: "bottomRight" }\`
+- A bordered editorial layout → \`{ kind: "ornamental_frame", placement: "frame" }\`
+- A simple list of 5 tips with no decoration → \`null\`
+- A multi-table cheat sheet → \`null\`
+
 **Layout choice (\`layout\` field):**
 - \`centered\` — pick this when one element visually dominates the page (a giant stat, a single hero quote, a big CTA card). Even if the design has a small section label, a body paragraph or two, and a footer, if the visual hierarchy is clearly "one hero element + supporting cast," it's \`centered\`. The renderer will vertically center the content stack.
 - \`flow\` — pick this when the design is a top-to-bottom narrative with multiple peers (tutorials, multi-tip lists, glossaries, two-table cheat sheets). No single block dominates; the reader works through the content sequentially.
@@ -168,6 +183,7 @@ export async function analyzeTemplate({
   return {
     layout: wire.data.layout,
     title: wire.data.title,
+    motif: wire.data.motif,
     blocks: wire.data.blocks.map(flattenBlock),
   };
 }

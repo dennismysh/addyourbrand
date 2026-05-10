@@ -356,15 +356,45 @@ export function flattenBlock(w: WireBlock): Block {
   }
 }
 
+// One optional decorative motif per design. The analyzer flags this when
+// the source has a strong decorative theme (giant quote marks on a quote
+// card, a corner mark on a stat card, a background pattern on a hero).
+// The renderer composites it behind/around the content.
+export const MotifPlacementEnum = z.enum([
+  "behind",
+  "frame",
+  "topLeft",
+  "topRight",
+  "bottomLeft",
+  "bottomRight",
+]);
+export type MotifPlacement = z.infer<typeof MotifPlacementEnum>;
+
+export const MotifKindEnum = z.enum([
+  "quote_marks_giant",
+  "ornamental_frame",
+  "corner_flourish",
+  "divider_pattern",
+  "background_pattern",
+]);
+
+export const DesignMotifSchema = z.object({
+  kind: MotifKindEnum,
+  placement: MotifPlacementEnum,
+});
+export type DesignMotif = z.infer<typeof DesignMotifSchema>;
+
 export const WireDocumentStructureSchema = z.object({
   layout: z.enum(["flow", "centered"]),
   title: z.string(),
+  motif: DesignMotifSchema.nullable(),
   blocks: z.array(WireBlockSchema),
 });
 
 export const DocumentStructureSchema = z.object({
   layout: z.enum(["flow", "centered"]),
   title: z.string(),
+  motif: DesignMotifSchema.nullable(),
   blocks: z.array(BlockSchema),
 });
 
@@ -398,6 +428,40 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
       type: "string",
       description:
         "Verbatim title of the source template. The first heading or the most prominent text.",
+    },
+    motif: {
+      type: ["object", "null"],
+      properties: {
+        kind: {
+          type: "string",
+          enum: [
+            "quote_marks_giant",
+            "ornamental_frame",
+            "corner_flourish",
+            "divider_pattern",
+            "background_pattern",
+          ],
+          description:
+            "Pick the decorative motif kind that best matches the source's visual character. quote_marks_giant for quote cards. ornamental_frame for designs with a clear border. corner_flourish for designs with a small mark in a corner. background_pattern for designs with subtle texture. divider_pattern for designs with a horizontal accent strip.",
+        },
+        placement: {
+          type: "string",
+          enum: [
+            "behind",
+            "frame",
+            "topLeft",
+            "topRight",
+            "bottomLeft",
+            "bottomRight",
+          ],
+          description:
+            "Where the motif sits. 'behind' = full-canvas backdrop behind text. 'frame' = full-canvas border around content. corner placements = small accent in that corner.",
+        },
+      },
+      required: ["kind", "placement"],
+      additionalProperties: false,
+      description:
+        "Optional. Fill ONLY when the source has a strong decorative element that defines its character (giant quote marks on a quote card, a logo mark in a corner, a frame border, a subtle background pattern). Set to null for content-first designs (lists, tables, tutorials) where ornamentation would compete with the content.",
     },
     blocks: {
       type: "array",
@@ -565,6 +629,6 @@ export const DOCUMENT_STRUCTURE_JSON_SCHEMA = {
       },
     },
   },
-  required: ["layout", "title", "blocks"],
+  required: ["layout", "title", "motif", "blocks"],
   additionalProperties: false,
 } as const;

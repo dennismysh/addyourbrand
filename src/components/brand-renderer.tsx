@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
-import type { Block, BrandProfile, DocumentStructure } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type {
+  Block,
+  BrandProfile,
+  DocumentStructure,
+  DesignMotif,
+  MotifPlacement,
+} from "@/lib/types";
 
 // In-browser preview of a DocumentStructure rendered in a brand's identity.
 // Same block schema as the Satori PNG renderer (lib/render-jsx.ts), so what
@@ -39,6 +45,71 @@ function brandStyle(brand: BrandProfile): BrandStyle {
 // serif). Server-side PNG export already fetches font bytes via fetchFont
 // and embeds them into the PDF/PNG — this hook just brings the in-browser
 // preview into agreement with the exported result.
+// Fetch motif bytes for the current doc and turn into a blob URL the preview
+// can layer absolutely. Returns null until the request resolves.
+function useMotifUrl(motif: DesignMotif | null, brand: BrandProfile): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!motif) {
+      setUrl(null);
+      return;
+    }
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    (async () => {
+      try {
+        const res = await fetch("/api/generate-motif", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: motif.kind, brand }),
+        });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        setUrl(createdUrl);
+      } catch {
+        // Preview without motif on failure — server-side render handles
+        // its own fallback for the export path.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [motif, brand]);
+  return url;
+}
+
+// Compute the absolute-positioning style for a motif overlay in the preview.
+// Same logic as the server-side renderer but scaled to the preview width.
+function motifPositionStyle(
+  placement: MotifPlacement,
+  s: BrandStyle,
+  scaleFn: (px: number) => number,
+): React.CSSProperties {
+  void s;
+  const cornerSize = scaleFn(380);
+  const base: React.CSSProperties = {
+    position: "absolute",
+    pointerEvents: "none",
+  };
+  switch (placement) {
+    case "behind":
+      return { ...base, left: 0, top: 0, width: "100%", height: "100%", opacity: 0.18 };
+    case "frame":
+      return { ...base, left: 0, top: 0, width: "100%", height: "100%" };
+    case "topLeft":
+      return { ...base, left: 0, top: 0, width: cornerSize, height: cornerSize };
+    case "topRight":
+      return { ...base, right: 0, top: 0, width: cornerSize, height: cornerSize };
+    case "bottomLeft":
+      return { ...base, left: 0, bottom: 0, width: cornerSize, height: cornerSize };
+    case "bottomRight":
+      return { ...base, right: 0, bottom: 0, width: cornerSize, height: cornerSize };
+  }
+}
+
 function useBrandFontLink(headingFamily: string, bodyFamily: string) {
   useEffect(() => {
     if (!headingFamily && !bodyFamily) return;
@@ -71,35 +142,58 @@ export function BrandRenderer({
   width?: number;
 }) {
   useBrandFontLink(brand.fonts.heading.family, brand.fonts.body.family);
+  const motifUrl = useMotifUrl(doc.motif, brand);
   const height = (width * 3) / 2;
   const s = brandStyle(brand);
   const padding = scale(64);
   const isCentered = doc.layout === "centered";
+  // Per-instance scale function used by motif positioning (the canvas is
+  // `width` px wide; positions in the source are at the 1080-px scale).
+  const localScale = (px: number) => Math.round((px * width) / 1080);
 
   return (
     <div
       style={{
+        position: "relative",
         width,
         height,
         background: s.bgColor,
         color: s.fgColor,
-        padding,
         display: "flex",
         flexDirection: "column",
-        // Always vertically center — under-filled canvases (hero stats) get
-        // balanced top/bottom whitespace; tall docs already fill the height.
-        justifyContent: "center",
-        alignItems: isCentered ? "center" : "stretch",
-        textAlign: isCentered ? "center" : "left",
         fontFamily: s.bodyFont,
         borderRadius: 12,
         boxShadow: "0 10px 40px -10px rgba(0,0,0,0.2)",
         overflow: "hidden",
       }}
     >
-      {doc.blocks.map((block, i) => (
-        <RenderBlock key={i} block={block} s={s} />
-      ))}
+      {doc.motif && motifUrl ? (
+        <div style={motifPositionStyle(doc.motif.placement, s, localScale)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={motifUrl}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+          />
+        </div>
+      ) : null}
+      <div
+        style={{
+          position: "relative",
+          flex: 1,
+          width: "100%",
+          padding,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: isCentered ? "center" : "stretch",
+          textAlign: isCentered ? "center" : "left",
+        }}
+      >
+        {doc.blocks.map((block, i) => (
+          <RenderBlock key={i} block={block} s={s} />
+        ))}
+      </div>
     </div>
   );
 }

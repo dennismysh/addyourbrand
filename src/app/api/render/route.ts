@@ -7,6 +7,7 @@ import { BrandProfileSchema, DocumentStructureSchema } from "@/lib/types";
 import type { FontDef } from "@/lib/types";
 import { buildDesignJsx, RENDER_DIMS } from "@/lib/render-jsx";
 import { fetchFont, fetchGoogleFont } from "@/lib/fonts";
+import { getMotifBytes } from "@/lib/motif";
 
 // If the brand's font can't be fetched (e.g., a pixel font with weird CSS,
 // or a Japanese font with multi-format declarations our regex misses), fall
@@ -125,15 +126,28 @@ export async function POST(req: Request) {
   const allText = collectAllText(doc);
 
   try {
-    const [headingRegular, headingBold, bodyRegular, bodyBold] =
+    // Fonts in parallel with motif bytes (if any) — both are network-bound,
+    // both are needed before we can render.
+    const motifPromise = doc.motif
+      ? getMotifBytes(doc.motif.kind, brand).catch((err) => {
+          console.warn("[render] motif fetch failed, rendering without:", err);
+          return undefined;
+        })
+      : Promise.resolve(undefined);
+    const [headingRegular, headingBold, bodyRegular, bodyBold, motifBytes] =
       await Promise.all([
         fetchFontOrFallback(brand.fonts.heading, 400, allText),
         fetchFontOrFallback(brand.fonts.heading, 700, allText),
         fetchFontOrFallback(brand.fonts.body, 400, allText),
         fetchFontOrFallback(brand.fonts.body, 600, allText),
+        motifPromise,
       ]);
 
-    const tree = buildDesignJsx(brand, doc) as unknown as React.ReactElement;
+    const tree = buildDesignJsx(
+      brand,
+      doc,
+      motifBytes,
+    ) as unknown as React.ReactElement;
 
     const svg = await satori(tree, {
       width: RENDER_DIMS.width,
