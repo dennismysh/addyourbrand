@@ -63,14 +63,17 @@ function useMotifUrl(motif: DesignMotif | null, brand: BrandProfile): string | n
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ kind: motif.kind, brand }),
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          console.warn(`[motif] preview fetch failed ${res.status}: ${text}`);
+          return;
+        }
         const blob = await res.blob();
         if (cancelled) return;
         createdUrl = URL.createObjectURL(blob);
         setUrl(createdUrl);
-      } catch {
-        // Preview without motif on failure — server-side render handles
-        // its own fallback for the export path.
+      } catch (err) {
+        console.warn("[motif] preview fetch threw:", err);
       }
     })();
     return () => {
@@ -96,7 +99,7 @@ function motifPositionStyle(
   };
   switch (placement) {
     case "behind":
-      return { ...base, left: 0, top: 0, width: "100%", height: "100%", opacity: 0.18 };
+      return { ...base, left: 0, top: 0, width: "100%", height: "100%", opacity: 0.35 };
     case "frame":
       return { ...base, left: 0, top: 0, width: "100%", height: "100%" };
     case "topLeft":

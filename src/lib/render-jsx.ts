@@ -664,7 +664,7 @@ function motifPositionStyle(
   switch (placement) {
     case "behind":
       // Full canvas backdrop. Stretch to canvas dims behind everything.
-      return { ...base, left: 0, top: 0, width: CANVAS_W, height: CANVAS_H, opacity: 0.18 };
+      return { ...base, left: 0, top: 0, width: CANVAS_W, height: CANVAS_H, opacity: 0.35 };
     case "frame":
       // Full canvas border element — same dims, rendered as overlay (frame
       // motif itself has transparent center).
