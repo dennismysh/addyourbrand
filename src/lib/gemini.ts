@@ -37,7 +37,9 @@ export async function generateImage(
   const model = options?.model ?? MODEL_MOTIF;
   const result = await gemini().models.generateContent({
     model,
-    contents: [{ parts: [{ text: prompt }] }],
+    // Gemini requires an explicit role on every contents entry — "user" or
+    // "model". Omitting it returns INVALID_ARGUMENT.
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {
       responseModalities: ["IMAGE"],
     },
